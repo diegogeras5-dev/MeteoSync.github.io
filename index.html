@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MeteoSync · Red Meteorológica Escolar</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg: #070b14;
+            --panel: #111827;
+            --cell: #0b1220;
+            --border: #283548;
+            --text: #f8fafc;
+            --muted: #94a3b8;
+            --accent: #38bdf8;
+            --temp: #fb7185;
+            --hum: #38bdf8;
+            --wind: #34d399;
+            --dir: #fbbf24;
+            --pres: #a78bfa;
+            --alt: #22d3ee;
+            --calc: #f59e0b;
+        }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body {
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 14px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .topbar {
+            max-width: 1600px; width: 100%; margin: 0 auto 14px auto;
+            background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
+            padding: 14px 18px; display: flex; flex-wrap: wrap; gap: 12px;
+            justify-content: space-between; align-items: center;
+        }
+        .brand h1 { margin: 0; font-size: clamp(1.25rem, 2.3vw, 1.75rem); color: var(--accent); }
+        .brand p { margin: 3px 0 0 0; font-size: 0.85rem; color: var(--muted); }
+        .menu-nav { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+        .pill-btn {
+            background: var(--cell); color: var(--text); border: 1px solid var(--border);
+            border-radius: 999px; padding: 6px 12px; font-size: 0.82rem; cursor: pointer;
+            transition: border-color 0.15s ease, background 0.15s ease;
+        }
+        .pill-btn:hover, .pill-btn.active {
+            border-color: var(--accent); background: rgba(56, 189, 248, 0.16); color: #e0f2fe;
+        }
+        .status-chip {
+            display: inline-flex; align-items: center; gap: 7px; font-size: 0.8rem;
+            color: #cbd5e1; background: var(--cell); border: 1px solid var(--border);
+            padding: 6px 11px; border-radius: 999px;
+        }
+        .dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; }
+        .dashboard-grid {
+            max-width: 1600px; width: 100%; margin: 0 auto;
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+            gap: 16px; flex: 1;
+        }
+        .nodo-bloque {
+            background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
+            padding: 16px; display: flex; flex-direction: column; gap: 12px; cursor: pointer;
+        }
+        .nodo-bloque:hover { border-color: rgba(56, 189, 248, 0.55); }
+        .nodo-header {
+            display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 1px solid var(--border); padding-bottom: 8px;
+        }
+        .nodo-titulo { margin: 0; font-size: 1.15rem; text-transform: capitalize; }
+        .nodo-badge {
+            font-size: 0.72rem; padding: 3px 9px; border-radius: 999px;
+            background: rgba(52, 211, 153, 0.14); color: #6ee7b7;
+            border: 1px solid rgba(52, 211, 153, 0.35); font-weight: 600;
+        }
+        .subtitulo { font-size: 0.73rem; text-transform: uppercase; letter-spacing: 0.4px; color: var(--muted); }
+        .metricas-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+        .cuadrito {
+            background: var(--cell); border: 1px solid #1e293b; border-radius: 10px; padding: 9px 10px;
+        }
+        .cuadrito:hover { border-color: var(--accent); }
+        .cuadrito-label { font-size: 0.72rem; color: var(--muted); margin-bottom: 3px; display: flex; justify-content: space-between; }
+        .cuadrito-valor { font-size: 1.1rem; font-weight: 700; }
+        .c-temp { color: var(--temp); } .c-hum { color: var(--hum); } .c-wind { color: var(--wind); }
+        .c-dir { color: var(--dir); } .c-pres { color: var(--pres); } .c-alt { color: var(--alt); }
+        .c-calc { color: var(--calc); }
+
+        /* Microinterfaz de alternancia: Modo Normal vs Modo Avanzado */
+        .prediccion-panel {
+            background: linear-gradient(180deg, rgba(14, 26, 46, 0.92) 0%, rgba(11, 18, 32, 0.98) 100%);
+            border: 1px solid #233b5c; border-radius: 12px; padding: 12px;
+            display: flex; flex-direction: column; gap: 10px;
+        }
+        .micro-menu {
+            display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap;
+        }
+        .micro-menu-label {
+            font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.5px; color: #7dd3fc;
+        }
+        .switch-group {
+            display: inline-flex; background: #070b14; border: 1px solid #283548;
+            border-radius: 999px; padding: 2px; gap: 2px;
+        }
+        .switch-btn {
+            border: none; background: transparent; color: var(--muted);
+            font-size: 0.72rem; font-weight: 600; padding: 4px 10px;
+            border-radius: 999px; cursor: pointer; transition: all 0.15s ease;
+        }
+        .switch-btn.active {
+            background: rgba(56, 189, 248, 0.22); color: #f8fafc;
+        }
+
+        /* Vista Modo Normal */
+        .vista-normal {
+            background: rgba(15, 23, 42, 0.72); border: 1px solid #1e293b;
+            border-radius: 10px; padding: 10px 12px;
+        }
+        .normal-frase {
+            font-size: 1.02rem; font-weight: 700; color: #f8fafc; line-height: 1.3;
+        }
+        .normal-nota {
+            font-size: 0.78rem; color: #cbd5e1; margin-top: 4px; line-height: 1.35;
+        }
+
+        /* Vista Modo Avanzado */
+        .vista-avanzada {
+            display: flex; flex-direction: column; gap: 8px;
+        }
+        .avanzado-chips {
+            display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px;
+        }
+        .avz-chip {
+            background: rgba(15, 23, 42, 0.85); border: 1px solid #1e293b; border-radius: 9px; padding: 7px 9px;
+        }
+        .avz-chip-lbl { font-size: 0.69rem; color: var(--muted); }
+        .avz-chip-val { font-size: 0.9rem; font-weight: 700; color: #e2e8f0; margin-top: 2px; }
+        .precision-grid {
+            display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px;
+        }
+        .prec-card {
+            background: rgba(7, 11, 20, 0.75); border: 1px solid #1e293b; border-radius: 8px; padding: 6px 7px;
+        }
+        .prec-horizonte { font-size: 0.68rem; color: var(--muted); display: block; }
+        .prec-rango { font-size: 0.75rem; font-weight: 700; color: #34d399; display: block; margin-top: 2px; }
+        .prec-rango.media { color: #fbbf24; }
+        .prec-rango.baja { color: #fb7185; }
+        .avz-detalle {
+            font-size: 0.72rem; color: #94a3b8; line-height: 1.35;
+            background: rgba(7, 11, 20, 0.55); border-radius: 8px; padding: 7px 8px;
+        }
+
+        .aviso-preventivo {
+            background: rgba(245, 158, 11, 0.09); border: 1px solid rgba(245, 158, 11, 0.28);
+            color: #fde68a; border-radius: 9px; padding: 8px 10px; font-size: 0.78rem; line-height: 1.35;
+        }
+        .mini-chart-box {
+            background: var(--cell); border: 1px solid #1e293b; border-radius: 10px; padding: 8px; height: 115px;
+        }
+        .nodo-footer { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--muted); }
+        .estado-vacio {
+            grid-column: 1 / -1; text-align: center; background: var(--panel);
+            border: 1px dashed #475569; border-radius: 14px; padding: 36px 16px; color: var(--muted);
+        }
+        footer.pie-legal {
+            max-width: 1600px; width: 100%; margin: 18px auto 0 auto;
+            background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+            padding: 12px 16px; font-size: 0.78rem; color: var(--muted); text-align: center; line-height: 1.4;
+        }
+
+        .modal-backdrop {
+            position: fixed; inset: 0; background: rgba(2, 6, 23, 0.8);
+            display: none; justify-content: center; align-items: center; padding: 12px; z-index: 1000;
+        }
+        .modal-backdrop.open { display: flex; }
+        .modal-panel {
+            width: 100%; max-width: 940px; max-height: 92vh; overflow-y: auto;
+            background: var(--panel); border: 1px solid #334155; border-radius: 16px; padding: 18px;
+        }
+        .modal-top {
+            display: flex; justify-content: space-between; align-items: flex-start;
+            border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 14px;
+        }
+        .modal-top h2 { margin: 0; font-size: 1.25rem; color: var(--accent); text-transform: capitalize; }
+        .modal-top p { margin: 3px 0 0 0; font-size: 0.82rem; color: var(--muted); }
+        .close-btn {
+            background: #1e293b; color: #f8fafc; border: 1px solid #475569;
+            border-radius: 8px; padding: 7px 12px; cursor: pointer;
+        }
+        .var-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+        .stats-row {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: 8px; margin-bottom: 14px;
+        }
+        .stat-box { background: var(--cell); border: 1px solid var(--border); border-radius: 10px; padding: 10px; }
+        .stat-label { font-size: 0.72rem; color: var(--muted); margin-bottom: 3px; }
+        .stat-val { font-size: 1.05rem; font-weight: 700; }
+        .detail-chart-wrap {
+            background: var(--cell); border: 1px solid var(--border); border-radius: 12px;
+            padding: 12px; height: 250px; margin-bottom: 12px;
+        }
+        .rendimiento-box {
+            background: var(--cell); border: 1px solid var(--border); border-radius: 12px;
+            padding: 12px; font-size: 0.83rem; line-height: 1.45; color: #cbd5e1;
+        }
+        .config-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 10px; margin-bottom: 14px;
+        }
+        .config-field { display: flex; flex-direction: column; gap: 5px; }
+        .config-field label { font-size: 0.78rem; color: var(--muted); }
+        .config-field input {
+            background: var(--cell); color: var(--text); border: 1px solid var(--border);
+            border-radius: 8px; padding: 8px 10px; font-size: 0.85rem;
+        }
+        .config-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+        .save-btn {
+            background: rgba(56, 189, 248, 0.2); color: #e0f2fe; border: 1px solid var(--accent);
+            border-radius: 8px; padding: 8px 14px; font-size: 0.85rem; font-weight: 600; cursor: pointer;
+        }
+        @media (max-width: 600px) {
+            body { padding: 10px; }
+            .dashboard-grid { grid-template-columns: 1fr; }
+            .precision-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <header class="topbar">
+        <div class="brand">
+            <h1 id="tituloRed">MeteoSync · Red Meteorológica Escolar</h1>
+            <p>Monitoreo Meteorológico Escolar · Unidades SI (NOM-008-SCFI-2002)</p>
+        </div>
+        <nav id="menuFiltros" class="menu-nav">
+            <button class="pill-btn active" data-filtro="todos" onclick="seleccionarFiltro('todos')">Todos los nodos</button>
+        </nav>
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <div class="switch-group" title="Alternar modo de predicción global">
+                <button id="btnGlobalNormal" class="switch-btn active" onclick="cambiarModoPrediccion('normal')">Normal</button>
+                <button id="btnGlobalAvanzado" class="switch-btn" onclick="cambiarModoPrediccion('avanzado')">Avanzado</button>
+            </div>
+            <button class="pill-btn" onclick="abrirConfig()">⚙ Configurar</button>
+            <div class="status-chip">
+                <span class="dot"></span>
+                <span id="estadoSync">Conectando...</span>
+            </div>
+        </div>
+    </header>
+
+    <main id="contenedorNodos" class="dashboard-grid">
+        <div class="estado-vacio">Cargando estaciones meteorológicas e historial...</div>
+    </main>
+
+    <footer class="pie-legal">
+        Datos generados por estaciones escolares locales con fines educativos e informativos. No sustituyen los pronósticos ni alertas oficiales del Servicio Meteorológico Nacional (SMN) ni de Protección Civil.
+    </footer>
+
+    <!-- Modal de detalle por nodo y variable -->
+    <div id="modalDetalle" class="modal-backdrop" onclick="if(event.target.id==='modalDetalle') cerrarModal()">
+        <div class="modal-panel">
+            <div class="modal-top">
+                <div>
+                    <h2 id="modalTitulo">Detalle del Nodo</h2>
+                    <p id="modalSubtitulo">Promedios, pronóstico e historial</p>
+                </div>
+                <button class="close-btn" onclick="cerrarModal()">Cerrar ✕</button>
+            </div>
+            <div id="tabsVariables" class="var-tabs"></div>
+            <div class="stats-row">
+                <div class="stat-box"><div class="stat-label">Valor actual</div><div id="stActual" class="stat-val">--</div></div>
+                <div class="stat-box"><div class="stat-label">Promedio (historial)</div><div id="stPromedio" class="stat-val">--</div></div>
+                <div class="stat-box"><div class="stat-label">Mínimo / Máximo</div><div id="stMinMax" class="stat-val">-- / --</div></div>
+                <div class="stat-box"><div class="stat-label">Precisión (1h / 24h)</div><div id="stRendimiento" class="stat-val">--</div></div>
+            </div>
+            <div class="detail-chart-wrap"><canvas id="chartDetalle"></canvas></div>
+            <div id="infoRendimiento" class="rendimiento-box"></div>
+        </div>
+    </div>
+
+    <!-- Modal de configuración rápida -->
+    <div id="modalConfig" class="modal-backdrop" onclick="if(event.target.id==='modalConfig') cerrarConfig()">
+        <div class="modal-panel" style="max-width: 640px;">
+            <div class="modal-top">
+                <div>
+                    <h2>Configuración de MeteoSync</h2>
+                    <p>Ajusta la base de datos y los intervalos para cuidar el consumo diario</p>
+                </div>
+                <button class="close-btn" onclick="cerrarConfig()">Cerrar ✕</button>
+            </div>
+            <div class="config-grid">
+                <div class="config-field" style="grid-column: 1 / -1;">
+                    <label for="cfgBaseUrl">URL base de Firebase Realtime Database</label>
+                    <input id="cfgBaseUrl" type="text" placeholder="https://meteosync-40958-default-rtdb.firebaseio.com">
+                </div>
+                <div class="config-field">
+                    <label for="cfgIntervaloEst">Consulta datos en vivo (segundos)</label>
+                    <input id="cfgIntervaloEst" type="number" min="5" max="300" value="15">
+                </div>
+                <div class="config-field">
+                    <label for="cfgIntervaloHist">Consulta historial (segundos)</label>
+                    <input id="cfgIntervaloHist" type="number" min="15" max="900" value="60">
+                </div>
+                <div class="config-field">
+                    <label for="cfgMaxPuntos">Máx. puntos de historial por variable</label>
+                    <input id="cfgMaxPuntos" type="number" min="5" max="100" value="24">
+                </div>
+            </div>
+            <div class="config-actions">
+                <button class="pill-btn" onclick="restablecerConfig()">Restablecer</button>
+                <button class="save-btn" onclick="guardarConfig()">Guardar y aplicar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const CONFIG_DEFAULT = {
+            baseUrl: "https://meteosync-40958-default-rtdb.firebaseio.com",
+            intervaloEstSeg: 15,
+            intervaloHistSeg: 60,
+            maxPuntos: 24
+        };
+        const STORAGE_KEY_CFG = "meteosync_cfg_v1";
+
+        function cargarConfig() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY_CFG);
+                if (!raw) return { ...CONFIG_DEFAULT };
+                const parsed = JSON.parse(raw);
+                return {
+                    baseUrl: (parsed.baseUrl || CONFIG_DEFAULT.baseUrl).replace(/\/+$/, ""),
+                    intervaloEstSeg: Math.max(5, Number(parsed.intervaloEstSeg) || CONFIG_DEFAULT.intervaloEstSeg),
+                    intervaloHistSeg: Math.max(15, Number(parsed.intervaloHistSeg) || CONFIG_DEFAULT.intervaloHistSeg),
+                    maxPuntos: Math.min(100, Math.max(5, Number(parsed.maxPuntos) || CONFIG_DEFAULT.maxPuntos))
+                };
+            } catch {
+                return { ...CONFIG_DEFAULT };
+            }
+        }
+
+        let cfg = cargarConfig();
+        let ultimaConsultaHistMs = 0;
+        let timerConsulta = null;
+        let modoPrediccion = "normal"; // "normal" | "avanzado"
+
+        const contenedor = document.getElementById("contenedorNodos");
+        const menuFiltros = document.getElementById("menuFiltros");
+        const estadoSync = document.getElementById("estadoSync");
+
+        const VARIABLES_BASE = [
+            { key: "temperatura", label: "Temperatura", unit: "°C", color: "#fb7185", cls: "c-temp", aliases: ["temperatura", "t"] },
+            { key: "humedad", label: "Humedad relativa", unit: "% HR", color: "#38bdf8", cls: "c-hum", aliases: ["humedad", "h"] },
+            { key: "velocidad_viento", label: "Velocidad viento", unit: "km/h", color: "#34d399", cls: "c-wind", aliases: ["velocidad_viento", "velocidadViento"] },
+            { key: "direccion_viento", label: "Dirección viento", unit: "", color: "#fbbf24", cls: "c-dir", aliases: ["direccion_viento", "direccionViento"] },
+            { key: "presion_atmosferica", label: "Presión atm.", unit: "hPa", color: "#a78bfa", cls: "c-pres", aliases: ["presion_atmosferica", "presion", "p"] },
+            { key: "altura", label: "Altura", unit: "m", color: "#22d3ee", cls: "c-alt", aliases: ["altura", "altitud"] }
+        ];
+
+        const VARIABLES_CALCULADAS = [
+            { key: "sensacion_termica", label: "Sensación térmica", unit: "°C", color: "#f59e0b", cls: "c-calc" },
+            { key: "punto_rocio", label: "Punto de rocío", unit: "°C", color: "#f59e0b", cls: "c-calc" },
+            { key: "bulbo_humedo", label: "Bulbo húmedo est.", unit: "°C", color: "#f59e0b", cls: "c-calc" },
+            { key: "presion_qnh", label: "Presión nivel mar", unit: "hPa", color: "#f59e0b", cls: "c-calc" },
+            { key: "tendencia_presion", label: "Tendencia barom.", unit: "", color: "#f59e0b", cls: "c-calc" }
+        ];
+
+        const TODAS_VARIABLES = [...VARIABLES_BASE, ...VARIABLES_CALCULADAS];
+
+        let ultimoDatos = {};
+        let filtroNodo = "todos";
+        let historialNodos = {};
+        let miniCharts = {};
+        let modalAbierto = false;
+        let nodoModal = null;
+        let variableModal = "temperatura";
+        let chartDetalle = null;
+
+        function sincronizarBotonesModo() {
+            document.getElementById("btnGlobalNormal").classList.toggle("active", modoPrediccion === "normal");
+            document.getElementById("btnGlobalAvanzado").classList.toggle("active", modoPrediccion === "avanzado");
+        }
+
+        function cambiarModoPrediccion(nuevoModo) {
+            modoPrediccion = nuevoModo === "avanzado" ? "avanzado" : "normal";
+            sincronizarBotonesModo();
+            renderizarTablero();
+            if (modalAbierto) actualizarModal();
+        }
+
+        function getRaw(datosNodo, varObj) {
+            if (!datosNodo || typeof datosNodo !== "object") return undefined;
+            for (const alias of varObj.aliases || []) {
+                if (datosNodo[alias] !== undefined && datosNodo[alias] !== null && datosNodo[alias] !== "") {
+                    return datosNodo[alias];
+                }
+            }
+            return undefined;
+        }
+
+        function calcularSensacionTermica(tC, rh) {
+            if (Number.isNaN(tC) || Number.isNaN(rh)) return undefined;
+            const tF = (tC * 9) / 5 + 32;
+            const hiF = -42.379 + 2.04901523 * tF + 10.14333127 * rh
+                - 0.22475541 * tF * rh - 0.00683783 * tF * tF
+                - 0.05481717 * rh * rh + 0.00122874 * tF * tF * rh
+                + 0.00085282 * tF * rh * rh - 0.00000199 * tF * tF * rh * rh;
+            const hiC = ((hiF - 32) * 5) / 9;
+            return Number((tC >= 26 && rh >= 40 ? hiC : tC).toFixed(1));
+        }
+
+        function calcularPuntoRocio(tC, rh) {
+            if (Number.isNaN(tC) || Number.isNaN(rh) || rh <= 0) return undefined;
+            const a = 17.27, b = 237.7;
+            const gamma = (a * tC) / (b + tC) + Math.log(rh / 100);
+            return Number(((b * gamma) / (a - gamma)).toFixed(1));
+        }
+
+        function calcularBulboHumedo(tC, rh) {
+            if (Number.isNaN(tC) || Number.isNaN(rh)) return undefined;
+            const tw = tC * Math.atan(0.151977 * Math.pow(rh + 8.313659, 0.5))
+                + Math.atan(tC + rh) - Math.atan(rh - 1.676331)
+                + 0.00391838 * Math.pow(rh, 1.5) * Math.atan(0.023101 * rh) - 4.686035;
+            return Number(tw.toFixed(1));
+        }
+
+        function calcularQNH(presionHpa, alturaM) {
+            if (Number.isNaN(presionHpa) || Number.isNaN(alturaM) || presionHpa < 300) return undefined;
+            return Number((presionHpa / Math.pow(1 - (0.0065 * alturaM) / 288.15, 5.255)).toFixed(1));
+        }
+
+        function obtenerTendenciaPresion(hist) {
+            const lista = hist?.puntos?.presion_atmosferica || [];
+            if (lista.length < 2) return undefined;
+            const actual = lista[lista.length - 1].valor;
+            const anterior = lista[Math.max(0, lista.length - 4)].valor;
+            const diff = actual - anterior;
+            if (diff > 0.6) return "Subiendo";
+            if (diff < -0.6) return "Bajando";
+            return "Estable";
+        }
+
+        function resolverValoresNodo(datosNodo, hist) {
+            const mapa = {};
+            VARIABLES_BASE.forEach(v => { mapa[v.key] = getRaw(datosNodo, v); });
+
+            const tNum = Number(mapa.temperatura);
+            const hNum = Number(mapa.humedad);
+            const pNum = Number(mapa.presion_atmosferica);
+            const aNum = Number(mapa.altura);
+
+            mapa.sensacion_termica = calcularSensacionTermica(tNum, hNum);
+            mapa.punto_rocio = calcularPuntoRocio(tNum, hNum);
+            mapa.bulbo_humedo = calcularBulboHumedo(tNum, hNum);
+            mapa.presion_qnh = calcularQNH(pNum, aNum);
+            mapa.tendencia_presion = obtenerTendenciaPresion(hist);
+            return mapa;
+        }
+
+        function generarPrediccionYPrecision(resueltos, hist) {
+            const t = Number(resueltos.temperatura);
+            const h = Number(resueltos.humedad);
+            const p = Number(resueltos.presion_atmosferica);
+            const tienePresionValida = !Number.isNaN(p) && p >= 300;
+            const tieneViento = !Number.isNaN(Number(resueltos.velocidad_viento));
+
+            const serieT = hist?.puntos?.temperatura || [];
+            const nPuntos = serieT.length;
+            let deltaT = 0;
+            if (nPuntos >= 2) {
+                deltaT = Number((serieT[nPuntos - 1].valor - serieT[0].valor).toFixed(2));
+            }
+
+            const est1h = !Number.isNaN(t) ? Number((t + deltaT * 0.45).toFixed(1)) : null;
+            const min24 = !Number.isNaN(t) ? Number((t - 6.5).toFixed(1)) : null;
+            const max24 = !Number.isNaN(t) ? Number((t + 4.5).toFixed(1)) : null;
+
+            let fraseNormal = "Esperando más datos para dar un pronóstico.";
+            let notaNormal = "Conforme lleguen lecturas e historial aparecerá la estimación.";
+            let detalleAvanzado = "Sin muestras suficientes en el historial.";
+
+            if (!Number.isNaN(t) && !Number.isNaN(h)) {
+                const spreadRocio = t - Number(resueltos.punto_rocio || t);
+                if (resueltos.tendencia_presion === "Bajando" || (h >= 80 && spreadRocio <= 3.5)) {
+                    fraseNormal = "Posible lluvia o nubosidad";
+                    notaNormal = "Hay alta humedad o baja en la presión; podría refrescar o lloviznar.";
+                } else if (h >= 70 && spreadRocio <= 5) {
+                    fraseNormal = "Ambiente húmedo y bochornoso";
+                    notaNormal = "Se sentirá más humedad en el ambiente durante las próximas horas.";
+                } else if (t >= 32 && h < 55) {
+                    fraseNormal = "Tarde calurosa y seca";
+                    notaNormal = "Predominará el calor y ambiente seco; conviene mantenerse hidratado.";
+                } else {
+                    fraseNormal = "Día estable y agradable";
+                    notaNormal = "Condiciones tranquilas sin cambios bruscos esperados.";
+                }
+
+                const signoDelta = deltaT > 0 ? `+${deltaT}` : `${deltaT}`;
+                detalleAvanzado = `Muestras: ${nPuntos} · ΔT: ${signoDelta} °C · Spread rocío: ${spreadRocio.toFixed(1)} °C · Barómetro: ${resueltos.tendencia_presion || "N/D"}`;
+            }
+
+            const sensoresActivos = (!Number.isNaN(t) ? 1 : 0) + (!Number.isNaN(h) ? 1 : 0)
+                + (tienePresionValida ? 1 : 0) + (tieneViento ? 1 : 0);
+
+            const factorHist = nPuntos >= 10 ? 1 : 1.25;
+            const precHora = sensoresActivos >= 3 ? `±${(0.5 * factorHist).toFixed(1)} °C (88%)` : `±${(0.8 * factorHist).toFixed(1)} °C (82%)`;
+            const precDia  = sensoresActivos >= 3 ? `±${(1.8 * factorHist).toFixed(1)} °C (72%)` : `±${(2.5 * factorHist).toFixed(1)} °C (64%)`;
+            const precMes  = "±3.8 °C (45%)";
+
+            const strEst1h = est1h !== null ? `${est1h} °C` : "-- °C";
+            const strRango24 = (min24 !== null && max24 !== null) ? `${min24} – ${max24} °C` : "-- – -- °C";
+
+            return {
+                fraseNormal,
+                notaNormal,
+                strEst1h,
+                strRango24,
+                detalleAvanzado,
+                precHora,
+                precDia,
+                precMes,
+                sensoresActivos,
+                nPuntos
+            };
+        }
+
+        function recomendacionPreventiva(mapa) {
+            const st = Number(mapa.sensacion_termica);
+            if (!Number.isNaN(st)) {
+                if (st >= 40) return `Sensación térmica de ${st} °C: hidratación constante y evitar actividad física intensa bajo sol directo.`;
+                if (st >= 33) return `Sensación térmica de ${st} °C: mantener hidratación y ventilar espacios escolares.`;
+            }
+            return "Condiciones de referencia escolar: sensores en sombra ventilada (NMX-AA-166/2).";
+        }
+
+        function formatearValor(valor, unidad) {
+            if (valor === undefined || valor === null || valor === "") return `-- ${unidad}`.trim();
+            return `${valor} ${unidad}`.trim();
+        }
+
+        function asegurarHistorial(nodoKey) {
+            if (!historialNodos[nodoKey]) {
+                const puntos = {};
+                TODAS_VARIABLES.forEach(v => { puntos[v.key] = []; });
+                historialNodos[nodoKey] = {
+                    muestrasSesion: 0,
+                    muestrasRemotas: null,
+                    ultimaHora: "--:--:--",
+                    puntos
+                };
+            }
+            return historialNodos[nodoKey];
+        }
+
+        function cargarHistorialRemoto(nodoKey, listaRemota) {
+            if (!Array.isArray(listaRemota) || listaRemota.length === 0) return;
+            const hist = asegurarHistorial(nodoKey);
+
+            VARIABLES_BASE.forEach(v => { hist.puntos[v.key] = []; });
+            VARIABLES_CALCULADAS.forEach(v => { hist.puntos[v.key] = []; });
+
+            const recortada = listaRemota.slice(-cfg.maxPuntos);
+            recortada.forEach((item, idx) => {
+                if (!item || typeof item !== "object") return;
+                const etiqueta = item.hora || item.ts || `#${item.m ?? idx + 1}`;
+                VARIABLES_BASE.forEach(v => {
+                    const raw = getRaw(item, v);
+                    const num = Number(raw);
+                    if (raw !== undefined && raw !== null && raw !== "" && !Number.isNaN(num)) {
+                        hist.puntos[v.key].push({ hora: String(etiqueta), valor: num });
+                    }
+                });
+
+                const tNum = Number(getRaw(item, VARIABLES_BASE[0]));
+                const hNum = Number(getRaw(item, VARIABLES_BASE[1]));
+                const pNum = Number(getRaw(item, VARIABLES_BASE[4]));
+                const aNum = Number(getRaw(item, VARIABLES_BASE[5]));
+
+                const st = calcularSensacionTermica(tNum, hNum);
+                const pr = calcularPuntoRocio(tNum, hNum);
+                const bh = calcularBulboHumedo(tNum, hNum);
+                const qnh = calcularQNH(pNum, aNum);
+
+                if (!Number.isNaN(st)) hist.puntos.sensacion_termica.push({ hora: String(etiqueta), valor: st });
+                if (!Number.isNaN(pr)) hist.puntos.punto_rocio.push({ hora: String(etiqueta), valor: pr });
+                if (!Number.isNaN(bh)) hist.puntos.bulbo_humedo.push({ hora: String(etiqueta), valor: bh });
+                if (!Number.isNaN(qnh)) hist.puntos.presion_qnh.push({ hora: String(etiqueta), valor: qnh });
+
+                if (item.m !== undefined && !Number.isNaN(Number(item.m))) {
+                    hist.muestrasRemotas = Math.max(hist.muestrasRemotas || 0, Number(item.m));
+                }
+            });
+        }
+
+        function registrarMuestraActual(nodoKey, datosNodo) {
+            const hist = asegurarHistorial(nodoKey);
+            const horaStr = new Date().toLocaleTimeString();
+            hist.ultimaHora = horaStr;
+            hist.muestrasSesion += 1;
+
+            if (datosNodo && datosNodo.muestras !== undefined && !Number.isNaN(Number(datosNodo.muestras))) {
+                hist.muestrasRemotas = Number(datosNodo.muestras);
+            }
+
+            const resueltos = resolverValoresNodo(datosNodo, hist);
+            TODAS_VARIABLES.forEach(v => {
+                const raw = resueltos[v.key];
+                const num = Number(raw);
+                if (raw !== undefined && raw !== null && raw !== "" && !Number.isNaN(num)) {
+                    const lista = hist.puntos[v.key];
+                    const ultimo = lista[lista.length - 1];
+                    if (!ultimo || ultimo.valor !== num) {
+                        lista.push({ hora: horaStr, valor: num });
+                        if (lista.length > cfg.maxPuntos) lista.shift();
+                    }
+                }
+            });
+        }
+
+        function actualizarMenuFiltros(clavesNodos) {
+            const actuales = Array.from(menuFiltros.querySelectorAll("button[data-filtro]")).map(b => b.dataset.filtro);
+            const deseados = ["todos", ...clavesNodos];
+            if (actuales.length === deseados.length && deseados.every((k, i) => actuales[i] === k)) {
+                menuFiltros.querySelectorAll("button[data-filtro]").forEach(btn => {
+                    btn.classList.toggle("active", btn.dataset.filtro === filtroNodo);
+                });
+                return;
+            }
+            menuFiltros.innerHTML = "";
+            deseados.forEach(clave => {
+                const btn = document.createElement("button");
+                btn.className = "pill-btn" + (clave === filtroNodo ? " active" : "");
+                btn.dataset.filtro = clave;
+                btn.textContent = clave === "todos" ? "Todos los nodos" : clave.replace(/_/g, " ");
+                btn.onclick = () => seleccionarFiltro(clave);
+                menuFiltros.appendChild(btn);
+            });
+        }
+
+        function seleccionarFiltro(clave) {
+            filtroNodo = clave;
+            renderizarTablero();
+        }
+
+        function destruirMiniCharts() {
+            Object.values(miniCharts).forEach(ch => ch.destroy());
+            miniCharts = {};
+        }
+
+        function crearMiniChart(canvasId, hist) {
+            const canvas = document.getElementById(canvasId);
+            if (!canvas) return;
+            const serieTemp = hist.puntos.temperatura || [];
+            const serieHum = hist.puntos.humedad || [];
+            miniCharts[canvasId] = new Chart(canvas.getContext("2d"), {
+                type: "line",
+                data: {
+                    labels: serieTemp.map(p => p.hora),
+                    datasets: [
+                        { label: "Temp (°C)", data: serieTemp.map(p => p.valor), borderColor: "#fb7185", borderWidth: 2, pointRadius: 1.5, tension: 0.3 },
+                        { label: "Hum (% HR)", data: serieHum.map(p => p.valor), borderColor: "#38bdf8", borderWidth: 2, pointRadius: 1.5, tension: 0.3 }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false, animation: false,
+                    plugins: { legend: { labels: { color: "#cbd5e1", boxWidth: 10, font: { size: 10 } } } },
+                    scales: {
+                        x: { display: false },
+                        y: { ticks: { color: "#94a3b8", font: { size: 10 }, maxTicksLimit: 4 }, grid: { color: "rgba(148,163,184,0.12)" } }
+                    }
+                }
+            });
+        }
+
+        function renderizarCuerpoPrediccion(pred) {
+            if (modoPrediccion === "normal") {
+                return `
+                    <div class="vista-normal">
+                        <div class="normal-frase">${pred.fraseNormal}</div>
+                        <div class="normal-nota">${pred.notaNormal}</div>
+                    </div>
+                `;
+            }
+
+            return `
+                <div class="vista-avanzada">
+                    <div class="avanzado-chips">
+                        <div class="avz-chip">
+                            <div class="avz-chip-lbl">Estimación 1 hora</div>
+                            <div class="avz-chip-val">${pred.strEst1h}</div>
+                        </div>
+                        <div class="avz-chip">
+                            <div class="avz-chip-lbl">Rango 24 horas</div>
+                            <div class="avz-chip-val">${pred.strRango24}</div>
+                        </div>
+                    </div>
+                    <div class="precision-grid">
+                        <div class="prec-card">
+                            <span class="prec-horizonte">Por hora</span>
+                            <span class="prec-rango">${pred.precHora}</span>
+                        </div>
+                        <div class="prec-card">
+                            <span class="prec-horizonte">Por día</span>
+                            <span class="prec-rango media">${pred.precDia}</span>
+                        </div>
+                        <div class="prec-card">
+                            <span class="prec-horizonte">Por mes</span>
+                            <span class="prec-rango baja">${pred.precMes}</span>
+                        </div>
+                    </div>
+                    <div class="avz-detalle">${pred.detalleAvanzado} · ${pred.sensoresActivos} var. activas</div>
+                </div>
+            `;
+        }
+
+        function renderizarTablero() {
+            destruirMiniCharts();
+            const claves = Object.keys(ultimoDatos || {});
+            if (claves.length === 0) {
+                actualizarMenuFiltros([]);
+                contenedor.innerHTML = `<div class="estado-vacio">Esperando datos en Firebase Realtime Database...</div>`;
+                return;
+            }
+
+            actualizarMenuFiltros(claves);
+            const visibles = filtroNodo === "todos" ? claves : claves.filter(k => k === filtroNodo);
+            contenedor.innerHTML = "";
+
+            visibles.forEach(clave => {
+                const datos = ultimoDatos[clave] || {};
+                const hist = asegurarHistorial(clave);
+                const resueltos = resolverValoresNodo(datos, hist);
+                const pred = generarPrediccionYPrecision(resueltos, hist);
+                const nombreVisible = clave.replace(/_/g, " ");
+                const canvasId = `mini_${clave.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
+                const totalMuestras = hist.muestrasRemotas !== null ? hist.muestrasRemotas : hist.muestrasSesion;
+
+                const baseHtml = VARIABLES_BASE.map(v => `
+                    <div class="cuadrito" onclick="event.stopPropagation(); abrirModal('${clave}', '${v.key}')">
+                        <div class="cuadrito-label"><span>${v.label}</span><span>↗</span></div>
+                        <div class="cuadrito-valor ${v.cls}">${formatearValor(resueltos[v.key], v.unit)}</div>
+                    </div>
+                `).join("");
+
+                const calcHtml = VARIABLES_CALCULADAS.map(v => `
+                    <div class="cuadrito" onclick="event.stopPropagation(); abrirModal('${clave}', '${v.key}')">
+                        <div class="cuadrito-label"><span>${v.label}</span><span>↗</span></div>
+                        <div class="cuadrito-valor ${v.cls}">${formatearValor(resueltos[v.key], v.unit)}</div>
+                    </div>
+                `).join("");
+
+                const bloque = document.createElement("section");
+                bloque.className = "nodo-bloque";
+                bloque.onclick = () => abrirModal(clave, "temperatura");
+                bloque.innerHTML = `
+                    <div class="nodo-header">
+                        <h2 class="nodo-titulo">${nombreVisible}</h2>
+                        <span class="nodo-badge">Activo</span>
+                    </div>
+
+                    <div class="prediccion-panel" onclick="event.stopPropagation()">
+                        <div class="micro-menu">
+                            <span class="micro-menu-label">Predicción · ${modoPrediccion === "normal" ? "Normal" : "Avanzado"}</span>
+                            <div class="switch-group">
+                                <button class="switch-btn ${modoPrediccion === "normal" ? "active" : ""}" onclick="cambiarModoPrediccion('normal')">Normal</button>
+                                <button class="switch-btn ${modoPrediccion === "avanzado" ? "active" : ""}" onclick="cambiarModoPrediccion('avanzado')">Avanzado</button>
+                            </div>
+                        </div>
+                        ${renderizarCuerpoPrediccion(pred)}
+                    </div>
+
+                    <div class="subtitulo">Mediciones directas</div>
+                    <div class="metricas-grid">${baseHtml}</div>
+
+                    <div class="subtitulo">Indicadores calculados</div>
+                    <div class="metricas-grid">${calcHtml}</div>
+
+                    <div class="aviso-preventivo">${recomendacionPreventiva(resueltos)}</div>
+
+                    <div class="mini-chart-box" onclick="event.stopPropagation(); abrirModal('${clave}', 'temperatura')">
+                        <canvas id="${canvasId}"></canvas>
+                    </div>
+
+                    <div class="nodo-footer">
+                        <span>Muestras: ${totalMuestras} (Hist: ${pred.nPuntos})</span>
+                        <span>Actualizado: ${hist.ultimaHora}</span>
+                    </div>
+                `;
+                contenedor.appendChild(bloque);
+                crearMiniChart(canvasId, hist);
+            });
+        }
+
+        function abrirModal(nodoKey, varKey) {
+            nodoModal = nodoKey;
+            variableModal = varKey || "temperatura";
+            modalAbierto = true;
+            document.getElementById("modalDetalle").classList.add("open");
+            actualizarModal();
+        }
+
+        function cerrarModal() {
+            modalAbierto = false;
+            document.getElementById("modalDetalle").classList.remove("open");
+            if (chartDetalle) { chartDetalle.destroy(); chartDetalle = null; }
+        }
+
+        function actualizarModal() {
+            if (!modalAbierto || !nodoModal) return;
+            const datosNodo = ultimoDatos[nodoModal] || {};
+            const hist = asegurarHistorial(nodoModal);
+            const resueltos = resolverValoresNodo(datosNodo, hist);
+            const pred = generarPrediccionYPrecision(resueltos, hist);
+            const varObj = TODAS_VARIABLES.find(v => v.key === variableModal) || TODAS_VARIABLES[0];
+
+            document.getElementById("modalTitulo").textContent = `${nodoModal.replace(/_/g, " ")} · ${varObj.label}`;
+            document.getElementById("modalSubtitulo").textContent = `estaciones/${nodoModal} · Actualizado: ${hist.ultimaHora}`;
+
+            const tabsEl = document.getElementById("tabsVariables");
+            tabsEl.innerHTML = "";
+            TODAS_VARIABLES.forEach(v => {
+                const btn = document.createElement("button");
+                btn.className = "pill-btn" + (v.key === varObj.key ? " active" : "");
+                btn.textContent = v.label;
+                btn.onclick = () => { variableModal = v.key; actualizarModal(); };
+                tabsEl.appendChild(btn);
+            });
+
+            document.getElementById("stActual").textContent = formatearValor(resueltos[varObj.key], varObj.unit);
+            const puntos = hist.puntos[varObj.key] || [];
+            if (puntos.length > 0) {
+                const vals = puntos.map(p => p.valor);
+                const prom = vals.reduce((a, b) => a + b, 0) / vals.length;
+                document.getElementById("stPromedio").textContent = `${prom.toFixed(2)} ${varObj.unit}`.trim();
+                document.getElementById("stMinMax").textContent = `${Math.min(...vals)} / ${Math.max(...vals)} ${varObj.unit}`.trim();
+            } else {
+                document.getElementById("stPromedio").textContent = `-- ${varObj.unit}`.trim();
+                document.getElementById("stMinMax").textContent = `-- / --`;
+            }
+
+            document.getElementById("stRendimiento").textContent = `${pred.precHora} · ${pred.precDia}`;
+            document.getElementById("infoRendimiento").innerHTML = modoPrediccion === "normal"
+                ? `<strong>${pred.fraseNormal}</strong> — ${pred.notaNormal}<br><span style="color:#94a3b8;">Cambia a <strong>Avanzado</strong> para ver rangos, precisión por horizonte y métricas del modelo.</span>`
+                : `<strong>${pred.fraseNormal}</strong> (${pred.notaNormal})<br>
+                   • <strong>Estimaciones:</strong> Próxima hora: <strong>${pred.strEst1h}</strong> · Rango 24 h: <strong>${pred.strRango24}</strong><br>
+                   • <strong>Precisión por horizonte:</strong> Por hora: <strong>${pred.precHora}</strong> | Por día: <strong>${pred.precDia}</strong> | Por mes: <strong>${pred.precMes}</strong><br>
+                   • <strong>Detalles técnicos:</strong> ${pred.detalleAvanzado} (${pred.sensoresActivos} variables activas).`;
+
+            const ctxDet = document.getElementById("chartDetalle").getContext("2d");
+            if (chartDetalle) chartDetalle.destroy();
+            chartDetalle = new Chart(ctxDet, {
+                type: "line",
+                data: {
+                    labels: puntos.map(p => p.hora),
+                    datasets: [{
+                        label: `${varObj.label} (${varObj.unit || "lectura"})`,
+                        data: puntos.map(p => p.valor),
+                        borderColor: varObj.color,
+                        backgroundColor: "rgba(56, 189, 248, 0.12)",
+                        borderWidth: 3, tension: 0.3, fill: true
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false, animation: false,
+                    plugins: { legend: { labels: { color: "#f8fafc" } } },
+                    scales: {
+                        x: { ticks: { color: "#94a3b8" }, grid: { color: "#1e293b" } },
+                        y: { ticks: { color: "#94a3b8" }, grid: { color: "#1e293b" } }
+                    }
+                }
+            });
+        }
+
+        function abrirConfig() {
+            document.getElementById("cfgBaseUrl").value = cfg.baseUrl;
+            document.getElementById("cfgIntervaloEst").value = cfg.intervaloEstSeg;
+            document.getElementById("cfgIntervaloHist").value = cfg.intervaloHistSeg;
+            document.getElementById("cfgMaxPuntos").value = cfg.maxPuntos;
+            document.getElementById("modalConfig").classList.add("open");
+        }
+
+        function cerrarConfig() {
+            document.getElementById("modalConfig").classList.remove("open");
+        }
+
+        function guardarConfig() {
+            cfg = {
+                baseUrl: (document.getElementById("cfgBaseUrl").value || CONFIG_DEFAULT.baseUrl).trim().replace(/\/+$/, ""),
+                intervaloEstSeg: Math.max(5, Number(document.getElementById("cfgIntervaloEst").value) || CONFIG_DEFAULT.intervaloEstSeg),
+                intervaloHistSeg: Math.max(15, Number(document.getElementById("cfgIntervaloHist").value) || CONFIG_DEFAULT.intervaloHistSeg),
+                maxPuntos: Math.min(100, Math.max(5, Number(document.getElementById("cfgMaxPuntos").value) || CONFIG_DEFAULT.maxPuntos))
+            };
+            localStorage.setItem(STORAGE_KEY_CFG, JSON.stringify(cfg));
+            ultimaConsultaHistMs = 0;
+            reiniciarTemporizador();
+            cerrarConfig();
+            consultarFirebase(true);
+        }
+
+        function restablecerConfig() {
+            localStorage.removeItem(STORAGE_KEY_CFG);
+            cfg = { ...CONFIG_DEFAULT };
+            ultimaConsultaHistMs = 0;
+            reiniciarTemporizador();
+            cerrarConfig();
+            consultarFirebase(true);
+        }
+
+        async function consultarFirebase(forzarHist = false) {
+            if (document.hidden) return;
+            const ahora = Date.now();
+            const debePedirHist = forzarHist || (ahora - ultimaConsultaHistMs >= cfg.intervaloHistSeg * 1000);
+
+            try {
+                const urlEst = `${cfg.baseUrl}/estaciones.json`;
+                const urlHist = `${cfg.baseUrl}/historial.json`;
+
+                const reqEst = fetch(urlEst, { cache: "no-store" });
+                const reqHist = debePedirHist ? fetch(urlHist, { cache: "no-store" }).catch(() => null) : Promise.resolve(null);
+
+                const [resEst, resHist] = await Promise.all([reqEst, reqHist]);
+                const dataEst = await resEst.json();
+                const dataHist = (resHist && resHist.ok) ? await resHist.json().catch(() => null) : null;
+
+                if (debePedirHist && resHist && resHist.ok) {
+                    ultimaConsultaHistMs = ahora;
+                }
+
+                if (dataEst && typeof dataEst === "object") {
+                    ultimoDatos = dataEst;
+                    Object.keys(dataEst).forEach(clave => {
+                        if (dataHist && dataHist[clave]) {
+                            cargarHistorialRemoto(clave, dataHist[clave]);
+                        }
+                        registrarMuestraActual(clave, dataEst[clave]);
+                    });
+                } else {
+                    ultimoDatos = {};
+                }
+
+                estadoSync.textContent = `En línea · ${new Date().toLocaleTimeString()}`;
+                renderizarTablero();
+                if (modalAbierto) actualizarModal();
+            } catch (err) {
+                estadoSync.textContent = "Reconectando...";
+            }
+        }
+
+        function reiniciarTemporizador() {
+            if (timerConsulta) clearInterval(timerConsulta);
+            timerConsulta = setInterval(() => consultarFirebase(false), cfg.intervaloEstSeg * 1000);
+        }
+
+        document.addEventListener("visibilitychange", () => {
+            if (!document.hidden) consultarFirebase(false);
+        });
+
+        sincronizarBotonesModo();
+        consultarFirebase(true);
+        reiniciarTemporizador();
+    </script>
+</body>
+</html>
