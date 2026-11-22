@@ -14,6 +14,9 @@
             --text: #f8fafc;
             --muted: #94a3b8;
             --accent: #38bdf8;
+            --ok: #34d399;
+            --warn: #fbbf24;
+            --off: #fb7185;
             --temp: #fb7185;
             --hum: #38bdf8;
             --wind: #34d399;
@@ -55,7 +58,10 @@
             color: #cbd5e1; background: var(--cell); border: 1px solid var(--border);
             padding: 6px 11px; border-radius: 999px;
         }
-        .dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
+        .dot.warn { background: var(--warn); }
+        .dot.off { background: var(--off); }
+
         .dashboard-grid {
             max-width: 1600px; width: 100%; margin: 0 auto;
             display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
@@ -64,17 +70,32 @@
         .nodo-bloque {
             background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
             padding: 16px; display: flex; flex-direction: column; gap: 12px; cursor: pointer;
+            transition: border-color 0.15s ease, opacity 0.2s ease;
         }
         .nodo-bloque:hover { border-color: rgba(56, 189, 248, 0.55); }
+        .nodo-bloque.offline {
+            border-color: rgba(251, 113, 133, 0.45);
+            opacity: 0.88;
+        }
         .nodo-header {
-            display: flex; justify-content: space-between; align-items: center;
+            display: flex; justify-content: space-between; align-items: center; gap: 8px;
             border-bottom: 1px solid var(--border); padding-bottom: 8px;
         }
         .nodo-titulo { margin: 0; font-size: 1.15rem; text-transform: capitalize; }
         .nodo-badge {
             font-size: 0.72rem; padding: 3px 9px; border-radius: 999px;
             background: rgba(52, 211, 153, 0.14); color: #6ee7b7;
-            border: 1px solid rgba(52, 211, 153, 0.35); font-weight: 600;
+            border: 1px solid rgba(52, 211, 153, 0.35); font-weight: 600; white-space: nowrap;
+        }
+        .nodo-badge.offline {
+            background: rgba(251, 113, 133, 0.15); color: #fda4af;
+            border: 1px solid rgba(251, 113, 133, 0.4);
+        }
+        .alerta-desconexion {
+            background: rgba(251, 113, 133, 0.1);
+            border: 1px solid rgba(251, 113, 133, 0.32);
+            color: #fecdd3; border-radius: 9px; padding: 8px 10px;
+            font-size: 0.76rem; line-height: 1.35;
         }
         .subtitulo { font-size: 0.73rem; text-transform: uppercase; letter-spacing: 0.4px; color: var(--muted); }
         .metricas-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
@@ -88,7 +109,6 @@
         .c-dir { color: var(--dir); } .c-pres { color: var(--pres); } .c-alt { color: var(--alt); }
         .c-calc { color: var(--calc); }
 
-        /* Microinterfaz de alternancia: Modo Normal vs Modo Avanzado */
         .prediccion-panel {
             background: linear-gradient(180deg, rgba(14, 26, 46, 0.92) 0%, rgba(11, 18, 32, 0.98) 100%);
             border: 1px solid #233b5c; border-radius: 12px; padding: 12px;
@@ -114,33 +134,21 @@
             background: rgba(56, 189, 248, 0.22); color: #f8fafc;
         }
 
-        /* Vista Modo Normal */
         .vista-normal {
             background: rgba(15, 23, 42, 0.72); border: 1px solid #1e293b;
             border-radius: 10px; padding: 10px 12px;
         }
-        .normal-frase {
-            font-size: 1.02rem; font-weight: 700; color: #f8fafc; line-height: 1.3;
-        }
-        .normal-nota {
-            font-size: 0.78rem; color: #cbd5e1; margin-top: 4px; line-height: 1.35;
-        }
+        .normal-frase { font-size: 1.02rem; font-weight: 700; color: #f8fafc; line-height: 1.3; }
+        .normal-nota { font-size: 0.78rem; color: #cbd5e1; margin-top: 4px; line-height: 1.35; }
 
-        /* Vista Modo Avanzado */
-        .vista-avanzada {
-            display: flex; flex-direction: column; gap: 8px;
-        }
-        .avanzado-chips {
-            display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px;
-        }
+        .vista-avanzada { display: flex; flex-direction: column; gap: 8px; }
+        .avanzado-chips { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
         .avz-chip {
             background: rgba(15, 23, 42, 0.85); border: 1px solid #1e293b; border-radius: 9px; padding: 7px 9px;
         }
         .avz-chip-lbl { font-size: 0.69rem; color: var(--muted); }
         .avz-chip-val { font-size: 0.9rem; font-weight: 700; color: #e2e8f0; margin-top: 2px; }
-        .precision-grid {
-            display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px;
-        }
+        .precision-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
         .prec-card {
             background: rgba(7, 11, 20, 0.75); border: 1px solid #1e293b; border-radius: 8px; padding: 6px 7px;
         }
@@ -160,7 +168,7 @@
         .mini-chart-box {
             background: var(--cell); border: 1px solid #1e293b; border-radius: 10px; padding: 8px; height: 115px;
         }
-        .nodo-footer { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--muted); }
+        .nodo-footer { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--muted); gap: 8px; flex-wrap: wrap; }
         .estado-vacio {
             grid-column: 1 / -1; text-align: center; background: var(--panel);
             border: 1px dashed #475569; border-radius: 14px; padding: 36px 16px; color: var(--muted);
@@ -168,7 +176,7 @@
         footer.pie-legal {
             max-width: 1600px; width: 100%; margin: 18px auto 0 auto;
             background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
-            padding: 12px 16px; font-size: 0.78rem; color: var(--muted); text-align: center; line-height: 1.4;
+            padding: 12px 16px; font-size: 0.78rem; color: var(--muted); text-align: center; line-height: 1.45;
         }
 
         .modal-backdrop {
@@ -231,7 +239,7 @@
     <header class="topbar">
         <div class="brand">
             <h1 id="tituloRed">MeteoSync · Red Meteorológica Escolar</h1>
-            <p>Monitoreo Meteorológico Escolar · Unidades SI (NOM-008-SCFI-2002)</p>
+            <p>Monitoreo Meteorológico Escolar en Tiempo Real</p>
         </div>
         <nav id="menuFiltros" class="menu-nav">
             <button class="pill-btn active" data-filtro="todos" onclick="seleccionarFiltro('todos')">Todos los nodos</button>
@@ -243,7 +251,7 @@
             </div>
             <button class="pill-btn" onclick="abrirConfig()">⚙ Configurar</button>
             <div class="status-chip">
-                <span class="dot"></span>
+                <span id="dotEstado" class="dot"></span>
                 <span id="estadoSync">Conectando...</span>
             </div>
         </div>
@@ -254,7 +262,7 @@
     </main>
 
     <footer class="pie-legal">
-        Datos generados por estaciones escolares locales con fines educativos e informativos. No sustituyen los pronósticos ni alertas oficiales del Servicio Meteorológico Nacional (SMN) ni de Protección Civil.
+        Datos generados por estaciones escolares locales con fines educativos e informativos, alineados a unidades SI y buenas prácticas de instalación (NOM-008-SCFI / NMX-AA-166/2). No sustituyen los pronósticos ni alertas oficiales del Servicio Meteorológico Nacional (SMN) ni de Protección Civil.
     </footer>
 
     <!-- Modal de detalle por nodo y variable -->
@@ -285,7 +293,7 @@
             <div class="modal-top">
                 <div>
                     <h2>Configuración de MeteoSync</h2>
-                    <p>Ajusta la base de datos y los intervalos para cuidar el consumo diario</p>
+                    <p>Ajusta la base de datos, intervalos y tiempo límite de desconexión</p>
                 </div>
                 <button class="close-btn" onclick="cerrarConfig()">Cerrar ✕</button>
             </div>
@@ -301,6 +309,10 @@
                 <div class="config-field">
                     <label for="cfgIntervaloHist">Consulta historial (segundos)</label>
                     <input id="cfgIntervaloHist" type="number" min="15" max="900" value="60">
+                </div>
+                <div class="config-field">
+                    <label for="cfgTimeoutDesconexion">Marcar desconectado tras (segundos sin señal)</label>
+                    <input id="cfgTimeoutDesconexion" type="number" min="30" max="3600" value="90">
                 </div>
                 <div class="config-field">
                     <label for="cfgMaxPuntos">Máx. puntos de historial por variable</label>
@@ -319,6 +331,7 @@
             baseUrl: "https://meteosync-40958-default-rtdb.firebaseio.com",
             intervaloEstSeg: 15,
             intervaloHistSeg: 60,
+            timeoutDesconexionSeg: 90,
             maxPuntos: 24
         };
         const STORAGE_KEY_CFG = "meteosync_cfg_v1";
@@ -332,6 +345,7 @@
                     baseUrl: (parsed.baseUrl || CONFIG_DEFAULT.baseUrl).replace(/\/+$/, ""),
                     intervaloEstSeg: Math.max(5, Number(parsed.intervaloEstSeg) || CONFIG_DEFAULT.intervaloEstSeg),
                     intervaloHistSeg: Math.max(15, Number(parsed.intervaloHistSeg) || CONFIG_DEFAULT.intervaloHistSeg),
+                    timeoutDesconexionSeg: Math.max(30, Number(parsed.timeoutDesconexionSeg) || CONFIG_DEFAULT.timeoutDesconexionSeg),
                     maxPuntos: Math.min(100, Math.max(5, Number(parsed.maxPuntos) || CONFIG_DEFAULT.maxPuntos))
                 };
             } catch {
@@ -342,11 +356,14 @@
         let cfg = cargarConfig();
         let ultimaConsultaHistMs = 0;
         let timerConsulta = null;
-        let modoPrediccion = "normal"; // "normal" | "avanzado"
+        let timerRelojEstado = null;
+        let modoPrediccion = "normal";
+        let errorRedGlobal = false;
 
         const contenedor = document.getElementById("contenedorNodos");
         const menuFiltros = document.getElementById("menuFiltros");
         const estadoSync = document.getElementById("estadoSync");
+        const dotEstado = document.getElementById("dotEstado");
 
         const VARIABLES_BASE = [
             { key: "temperatura", label: "Temperatura", unit: "°C", color: "#fb7185", cls: "c-temp", aliases: ["temperatura", "t"] },
@@ -375,6 +392,62 @@
         let nodoModal = null;
         let variableModal = "temperatura";
         let chartDetalle = null;
+
+        function formatearTiempoTranscurrido(seg) {
+            if (seg < 60) return `hace ${Math.floor(seg)} s`;
+            const min = Math.floor(seg / 60);
+            if (min < 60) return `hace ${min} min`;
+            const hrs = Math.floor(min / 60);
+            return `hace ${hrs} h ${min % 60} min`;
+        }
+
+        function firmaDatosNodo(datosNodo) {
+            if (!datosNodo || typeof datosNodo !== "object") return "";
+            const copia = { ...datosNodo };
+            delete copia.ts;
+            delete copia.hora;
+            return JSON.stringify(copia);
+        }
+
+        function evaluarEstadoNodo(nodoKey) {
+            const hist = asegurarHistorial(nodoKey);
+            const ahora = Date.now();
+            const refMs = hist.ultimoDatoNuevoMs || hist.primerVistaMs || ahora;
+            const segSinDato = Math.max(0, (ahora - refMs) / 1000);
+            const conectado = segSinDato <= cfg.timeoutDesconexionSeg;
+            return {
+                conectado,
+                segSinDato,
+                textoRelativo: formatearTiempoTranscurrido(segSinDato)
+            };
+        }
+
+        function actualizarEstadoCabecera() {
+            const claves = Object.keys(ultimoDatos || {});
+            if (errorRedGlobal) {
+                dotEstado.className = "dot off";
+                estadoSync.textContent = "Error de conexión";
+                return;
+            }
+            if (claves.length === 0) {
+                dotEstado.className = "dot warn";
+                estadoSync.textContent = "Sin nodos registrados";
+                return;
+            }
+            const activos = claves.filter(k => evaluarEstadoNodo(k).conectado).length;
+            const desconectados = claves.length - activos;
+
+            if (activos === 0) {
+                dotEstado.className = "dot off";
+                estadoSync.textContent = `Todos desconectados (0/${claves.length})`;
+            } else if (desconectados > 0) {
+                dotEstado.className = "dot warn";
+                estadoSync.textContent = `Activos ${activos}/${claves.length} · ${desconectados} sin señal`;
+            } else {
+                dotEstado.className = "dot";
+                estadoSync.textContent = `En línea (${activos}/${claves.length}) · ${new Date().toLocaleTimeString()}`;
+            }
+        }
 
         function sincronizarBotonesModo() {
             document.getElementById("btnGlobalNormal").classList.toggle("active", modoPrediccion === "normal");
@@ -530,7 +603,7 @@
                 if (st >= 40) return `Sensación térmica de ${st} °C: hidratación constante y evitar actividad física intensa bajo sol directo.`;
                 if (st >= 33) return `Sensación térmica de ${st} °C: mantener hidratación y ventilar espacios escolares.`;
             }
-            return "Condiciones de referencia escolar: sensores en sombra ventilada (NMX-AA-166/2).";
+            return "Condiciones de referencia escolar: sensores en sombra ventilada.";
         }
 
         function formatearValor(valor, unidad) {
@@ -542,9 +615,13 @@
             if (!historialNodos[nodoKey]) {
                 const puntos = {};
                 TODAS_VARIABLES.forEach(v => { puntos[v.key] = []; });
+                const ahora = Date.now();
                 historialNodos[nodoKey] = {
                     muestrasSesion: 0,
                     muestrasRemotas: null,
+                    ultimaFirma: "",
+                    primerVistaMs: ahora,
+                    ultimoDatoNuevoMs: null,
                     ultimaHora: "--:--:--",
                     puntos
                 };
@@ -560,6 +637,12 @@
             VARIABLES_CALCULADAS.forEach(v => { hist.puntos[v.key] = []; });
 
             const recortada = listaRemota.slice(-cfg.maxPuntos);
+            const firmaHist = JSON.stringify(recortada);
+            if (firmaHist !== hist.ultimaFirmaHist) {
+                hist.ultimaFirmaHist = firmaHist;
+                hist.ultimoDatoNuevoMs = Date.now();
+            }
+
             recortada.forEach((item, idx) => {
                 if (!item || typeof item !== "object") return;
                 const etiqueta = item.hora || item.ts || `#${item.m ?? idx + 1}`;
@@ -594,12 +677,24 @@
 
         function registrarMuestraActual(nodoKey, datosNodo) {
             const hist = asegurarHistorial(nodoKey);
-            const horaStr = new Date().toLocaleTimeString();
-            hist.ultimaHora = horaStr;
-            hist.muestrasSesion += 1;
+            const firmaActual = firmaDatosNodo(datosNodo);
+            const muestrasNuevas = datosNodo && datosNodo.muestras !== undefined && !Number.isNaN(Number(datosNodo.muestras))
+                ? Number(datosNodo.muestras)
+                : null;
 
-            if (datosNodo && datosNodo.muestras !== undefined && !Number.isNaN(Number(datosNodo.muestras))) {
-                hist.muestrasRemotas = Number(datosNodo.muestras);
+            const huboCambio =
+                (firmaActual !== "" && firmaActual !== hist.ultimaFirma) ||
+                (muestrasNuevas !== null && hist.muestrasRemotas !== null && muestrasNuevas !== hist.muestrasRemotas);
+
+            if (huboCambio || hist.ultimoDatoNuevoMs === null) {
+                hist.ultimoDatoNuevoMs = Date.now();
+                hist.ultimaHora = new Date().toLocaleTimeString();
+                hist.muestrasSesion += 1;
+            }
+
+            hist.ultimaFirma = firmaActual;
+            if (muestrasNuevas !== null) {
+                hist.muestrasRemotas = muestrasNuevas;
             }
 
             const resueltos = resolverValoresNodo(datosNodo, hist);
@@ -610,7 +705,7 @@
                     const lista = hist.puntos[v.key];
                     const ultimo = lista[lista.length - 1];
                     if (!ultimo || ultimo.valor !== num) {
-                        lista.push({ hora: horaStr, valor: num });
+                        lista.push({ hora: hist.ultimaHora, valor: num });
                         if (lista.length > cfg.maxPuntos) lista.shift();
                     }
                 }
@@ -729,6 +824,7 @@
             visibles.forEach(clave => {
                 const datos = ultimoDatos[clave] || {};
                 const hist = asegurarHistorial(clave);
+                const estadoNodo = evaluarEstadoNodo(clave);
                 const resueltos = resolverValoresNodo(datos, hist);
                 const pred = generarPrediccionYPrecision(resueltos, hist);
                 const nombreVisible = clave.replace(/_/g, " ");
@@ -749,14 +845,20 @@
                     </div>
                 `).join("");
 
+                const alertaHtml = !estadoNodo.conectado
+                    ? `<div class="alerta-desconexion">Sin envío de datos recientes (${estadoNodo.textoRelativo}). El nodo puede estar apagado, sin Wi-Fi o con falla de energía.</div>`
+                    : "";
+
                 const bloque = document.createElement("section");
-                bloque.className = "nodo-bloque";
+                bloque.className = `nodo-bloque ${estadoNodo.conectado ? "" : "offline"}`;
                 bloque.onclick = () => abrirModal(clave, "temperatura");
                 bloque.innerHTML = `
                     <div class="nodo-header">
                         <h2 class="nodo-titulo">${nombreVisible}</h2>
-                        <span class="nodo-badge">Activo</span>
+                        <span class="nodo-badge ${estadoNodo.conectado ? "" : "offline"}">${estadoNodo.conectado ? "Activo" : "Desconectado"}</span>
                     </div>
+
+                    ${alertaHtml}
 
                     <div class="prediccion-panel" onclick="event.stopPropagation()">
                         <div class="micro-menu">
@@ -783,7 +885,7 @@
 
                     <div class="nodo-footer">
                         <span>Muestras: ${totalMuestras} (Hist: ${pred.nPuntos})</span>
-                        <span>Actualizado: ${hist.ultimaHora}</span>
+                        <span>${estadoNodo.conectado ? `Actualizado: ${hist.ultimaHora}` : `Sin señal ${estadoNodo.textoRelativo}`}</span>
                     </div>
                 `;
                 contenedor.appendChild(bloque);
@@ -809,12 +911,15 @@
             if (!modalAbierto || !nodoModal) return;
             const datosNodo = ultimoDatos[nodoModal] || {};
             const hist = asegurarHistorial(nodoModal);
+            const estadoNodo = evaluarEstadoNodo(nodoModal);
             const resueltos = resolverValoresNodo(datosNodo, hist);
             const pred = generarPrediccionYPrecision(resueltos, hist);
             const varObj = TODAS_VARIABLES.find(v => v.key === variableModal) || TODAS_VARIABLES[0];
 
             document.getElementById("modalTitulo").textContent = `${nodoModal.replace(/_/g, " ")} · ${varObj.label}`;
-            document.getElementById("modalSubtitulo").textContent = `estaciones/${nodoModal} · Actualizado: ${hist.ultimaHora}`;
+            document.getElementById("modalSubtitulo").textContent = estadoNodo.conectado
+                ? `estaciones/${nodoModal} · Activo · Última actualización: ${hist.ultimaHora}`
+                : `estaciones/${nodoModal} · Desconectado (${estadoNodo.textoRelativo})`;
 
             const tabsEl = document.getElementById("tabsVariables");
             tabsEl.innerHTML = "";
@@ -839,12 +944,16 @@
             }
 
             document.getElementById("stRendimiento").textContent = `${pred.precHora} · ${pred.precDia}`;
-            document.getElementById("infoRendimiento").innerHTML = modoPrediccion === "normal"
+            const estadoTextoModal = estadoNodo.conectado
+                ? `<span style="color:#6ee7b7;"><strong>Estado:</strong> Activo (último cambio ${estadoNodo.textoRelativo})</span><br>`
+                : `<span style="color:#fda4af;"><strong>Estado:</strong> Desconectado — sin datos nuevos ${estadoNodo.textoRelativo} (límite: ${cfg.timeoutDesconexionSeg} s)</span><br>`;
+
+            document.getElementById("infoRendimiento").innerHTML = estadoTextoModal + (modoPrediccion === "normal"
                 ? `<strong>${pred.fraseNormal}</strong> — ${pred.notaNormal}<br><span style="color:#94a3b8;">Cambia a <strong>Avanzado</strong> para ver rangos, precisión por horizonte y métricas del modelo.</span>`
                 : `<strong>${pred.fraseNormal}</strong> (${pred.notaNormal})<br>
                    • <strong>Estimaciones:</strong> Próxima hora: <strong>${pred.strEst1h}</strong> · Rango 24 h: <strong>${pred.strRango24}</strong><br>
                    • <strong>Precisión por horizonte:</strong> Por hora: <strong>${pred.precHora}</strong> | Por día: <strong>${pred.precDia}</strong> | Por mes: <strong>${pred.precMes}</strong><br>
-                   • <strong>Detalles técnicos:</strong> ${pred.detalleAvanzado} (${pred.sensoresActivos} variables activas).`;
+                   • <strong>Detalles técnicos:</strong> ${pred.detalleAvanzado} (${pred.sensoresActivos} variables activas).`);
 
             const ctxDet = document.getElementById("chartDetalle").getContext("2d");
             if (chartDetalle) chartDetalle.destroy();
@@ -875,6 +984,7 @@
             document.getElementById("cfgBaseUrl").value = cfg.baseUrl;
             document.getElementById("cfgIntervaloEst").value = cfg.intervaloEstSeg;
             document.getElementById("cfgIntervaloHist").value = cfg.intervaloHistSeg;
+            document.getElementById("cfgTimeoutDesconexion").value = cfg.timeoutDesconexionSeg;
             document.getElementById("cfgMaxPuntos").value = cfg.maxPuntos;
             document.getElementById("modalConfig").classList.add("open");
         }
@@ -888,6 +998,7 @@
                 baseUrl: (document.getElementById("cfgBaseUrl").value || CONFIG_DEFAULT.baseUrl).trim().replace(/\/+$/, ""),
                 intervaloEstSeg: Math.max(5, Number(document.getElementById("cfgIntervaloEst").value) || CONFIG_DEFAULT.intervaloEstSeg),
                 intervaloHistSeg: Math.max(15, Number(document.getElementById("cfgIntervaloHist").value) || CONFIG_DEFAULT.intervaloHistSeg),
+                timeoutDesconexionSeg: Math.max(30, Number(document.getElementById("cfgTimeoutDesconexion").value) || CONFIG_DEFAULT.timeoutDesconexionSeg),
                 maxPuntos: Math.min(100, Math.max(5, Number(document.getElementById("cfgMaxPuntos").value) || CONFIG_DEFAULT.maxPuntos))
             };
             localStorage.setItem(STORAGE_KEY_CFG, JSON.stringify(cfg));
@@ -926,6 +1037,8 @@
                     ultimaConsultaHistMs = ahora;
                 }
 
+                errorRedGlobal = false;
+
                 if (dataEst && typeof dataEst === "object") {
                     ultimoDatos = dataEst;
                     Object.keys(dataEst).forEach(clave => {
@@ -938,17 +1051,27 @@
                     ultimoDatos = {};
                 }
 
-                estadoSync.textContent = `En línea · ${new Date().toLocaleTimeString()}`;
+                actualizarEstadoCabecera();
                 renderizarTablero();
                 if (modalAbierto) actualizarModal();
             } catch (err) {
-                estadoSync.textContent = "Reconectando...";
+                errorRedGlobal = true;
+                actualizarEstadoCabecera();
             }
         }
 
         function reiniciarTemporizador() {
             if (timerConsulta) clearInterval(timerConsulta);
             timerConsulta = setInterval(() => consultarFirebase(false), cfg.intervaloEstSeg * 1000);
+
+            if (timerRelojEstado) clearInterval(timerRelojEstado);
+            timerRelojEstado = setInterval(() => {
+                if (Object.keys(ultimoDatos || {}).length > 0) {
+                    actualizarEstadoCabecera();
+                    renderizarTablero();
+                    if (modalAbierto) actualizarModal();
+                }
+            }, 10000);
         }
 
         document.addEventListener("visibilitychange", () => {
