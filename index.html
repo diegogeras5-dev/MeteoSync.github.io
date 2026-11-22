@@ -213,21 +213,6 @@
             background: var(--cell); border: 1px solid var(--border); border-radius: 12px;
             padding: 12px; font-size: 0.83rem; line-height: 1.45; color: #cbd5e1;
         }
-        .config-grid {
-            display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 10px; margin-bottom: 14px;
-        }
-        .config-field { display: flex; flex-direction: column; gap: 5px; }
-        .config-field label { font-size: 0.78rem; color: var(--muted); }
-        .config-field input {
-            background: var(--cell); color: var(--text); border: 1px solid var(--border);
-            border-radius: 8px; padding: 8px 10px; font-size: 0.85rem;
-        }
-        .config-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
-        .save-btn {
-            background: rgba(56, 189, 248, 0.2); color: #e0f2fe; border: 1px solid var(--accent);
-            border-radius: 8px; padding: 8px 14px; font-size: 0.85rem; font-weight: 600; cursor: pointer;
-        }
         @media (max-width: 600px) {
             body { padding: 10px; }
             .dashboard-grid { grid-template-columns: 1fr; }
@@ -249,7 +234,6 @@
                 <button id="btnGlobalNormal" class="switch-btn active" onclick="cambiarModoPrediccion('normal')">Normal</button>
                 <button id="btnGlobalAvanzado" class="switch-btn" onclick="cambiarModoPrediccion('avanzado')">Avanzado</button>
             </div>
-            <button class="pill-btn" onclick="abrirConfig()">⚙ Configurar</button>
             <div class="status-chip">
                 <span id="dotEstado" class="dot"></span>
                 <span id="estadoSync">Conectando...</span>
@@ -287,73 +271,77 @@
         </div>
     </div>
 
-    <!-- Modal de configuración rápida -->
-    <div id="modalConfig" class="modal-backdrop" onclick="if(event.target.id==='modalConfig') cerrarConfig()">
-        <div class="modal-panel" style="max-width: 640px;">
-            <div class="modal-top">
-                <div>
-                    <h2>Configuración de MeteoSync</h2>
-                    <p>Ajusta la base de datos, intervalos y tiempo límite de desconexión</p>
-                </div>
-                <button class="close-btn" onclick="cerrarConfig()">Cerrar ✕</button>
-            </div>
-            <div class="config-grid">
-                <div class="config-field" style="grid-column: 1 / -1;">
-                    <label for="cfgBaseUrl">URL base de Firebase Realtime Database</label>
-                    <input id="cfgBaseUrl" type="text" placeholder="https://meteosync-40958-default-rtdb.firebaseio.com">
-                </div>
-                <div class="config-field">
-                    <label for="cfgIntervaloEst">Consulta datos en vivo (segundos)</label>
-                    <input id="cfgIntervaloEst" type="number" min="5" max="300" value="15">
-                </div>
-                <div class="config-field">
-                    <label for="cfgIntervaloHist">Consulta historial (segundos)</label>
-                    <input id="cfgIntervaloHist" type="number" min="15" max="900" value="60">
-                </div>
-                <div class="config-field">
-                    <label for="cfgTimeoutDesconexion">Marcar desconectado tras (segundos sin señal)</label>
-                    <input id="cfgTimeoutDesconexion" type="number" min="30" max="3600" value="90">
-                </div>
-                <div class="config-field">
-                    <label for="cfgMaxPuntos">Máx. puntos de historial por variable</label>
-                    <input id="cfgMaxPuntos" type="number" min="5" max="100" value="24">
-                </div>
-            </div>
-            <div class="config-actions">
-                <button class="pill-btn" onclick="restablecerConfig()">Restablecer</button>
-                <button class="save-btn" onclick="guardarConfig()">Guardar y aplicar</button>
-            </div>
-        </div>
-    </div>
-
     <script>
-        const CONFIG_DEFAULT = {
+        // =========================================================================
+        // BLOQUE INTERNO DE DESARROLLADOR (NO EXPUESTO EN LA INTERFAZ DE USUARIO)
+        // Solo se modifica editando index.html y volviendo a desplegar.
+        // =========================================================================
+        const DEV_LOCK = Object.freeze({
             baseUrl: "https://meteosync-40958-default-rtdb.firebaseio.com",
-            intervaloEstSeg: 15,
-            intervaloHistSeg: 60,
-            timeoutDesconexionSeg: 90,
-            maxPuntos: 24
-        };
-        const STORAGE_KEY_CFG = "meteosync_cfg_v1";
+            maxMbPorDia: 30,
+            maxPuntos: 24,
+            // Escalado proporcional al número de nodos (N):
+            // intervaloVivoSeg = clamp(baseVivoSeg + (N - 2) * pasoPorNodoSeg, minVivoSeg, maxVivoSeg)
+            baseVivoSeg: 20,
+            pasoPorNodoSeg: 5,
+            minVivoSeg: 15,
+            maxVivoSeg: 180,
+            // El historial se consulta de forma proporcional al ciclo en vivo
+            multiplicadorHist: 3.5,
+            minHistSeg: 60,
+            maxHistSeg: 600,
+            // Desconexión proporcional para dar margen ante intervalos más largos al haber más nodos
+            baseTimeoutSeg: 90,
+            pasoTimeoutPorNodoSeg: 15,
+            minTimeoutSeg: 75,
+            maxTimeoutSeg: 420
+        });
+        // =========================================================================
 
-        function cargarConfig() {
-            try {
-                const raw = localStorage.getItem(STORAGE_KEY_CFG);
-                if (!raw) return { ...CONFIG_DEFAULT };
-                const parsed = JSON.parse(raw);
-                return {
-                    baseUrl: (parsed.baseUrl || CONFIG_DEFAULT.baseUrl).replace(/\/+$/, ""),
-                    intervaloEstSeg: Math.max(5, Number(parsed.intervaloEstSeg) || CONFIG_DEFAULT.intervaloEstSeg),
-                    intervaloHistSeg: Math.max(15, Number(parsed.intervaloHistSeg) || CONFIG_DEFAULT.intervaloHistSeg),
-                    timeoutDesconexionSeg: Math.max(30, Number(parsed.timeoutDesconexionSeg) || CONFIG_DEFAULT.timeoutDesconexionSeg),
-                    maxPuntos: Math.min(100, Math.max(5, Number(parsed.maxPuntos) || CONFIG_DEFAULT.maxPuntos))
-                };
-            } catch {
-                return { ...CONFIG_DEFAULT };
+        function calcularPlanProporcional(cantidadNodos) {
+            const n = Math.max(2, Number(cantidadNodos) || 2);
+
+            let vivoSeg = DEV_LOCK.baseVivoSeg + (n - 2) * DEV_LOCK.pasoPorNodoSeg;
+            vivoSeg = Math.min(DEV_LOCK.maxVivoSeg, Math.max(DEV_LOCK.minVivoSeg, vivoSeg));
+
+            let histSeg = Math.round(vivoSeg * DEV_LOCK.multiplicadorHist);
+            histSeg = Math.min(DEV_LOCK.maxHistSeg, Math.max(DEV_LOCK.minHistSeg, histSeg));
+
+            // Estimación conservadora de bytes por petición (incluye sobrecarga HTTPS + JSON)
+            // estaciones.json ~ 320 bytes por nodo + 900 bytes cabecera
+            // historial.json ~ (320 + maxPuntos * 42) bytes por nodo + 1100 bytes cabecera
+            const bytesPorEst = 900 + n * 320;
+            const bytesPorHist = 1100 + n * (320 + DEV_LOCK.maxPuntos * 42);
+            const maxBytesDia = DEV_LOCK.maxMbPorDia * 1024 * 1024;
+
+            const segEnDia = 86400;
+            const bytesDiaActual = (segEnDia / vivoSeg) * bytesPorEst + (segEnDia / histSeg) * bytesPorHist;
+
+            if (bytesDiaActual > maxBytesDia) {
+                const bytesHistDia = (segEnDia / histSeg) * bytesPorHist;
+                const presupuestoEstDia = Math.max(maxBytesDia * 0.35, maxBytesDia - bytesHistDia);
+                const peticionesEstDia = Math.max(1, presupuestoEstDia / bytesPorEst);
+                vivoSeg = Math.min(DEV_LOCK.maxVivoSeg, Math.max(vivoSeg, Math.ceil(segEnDia / peticionesEstDia)));
+                histSeg = Math.min(DEV_LOCK.maxHistSeg, Math.max(histSeg, Math.round(vivoSeg * DEV_LOCK.multiplicadorHist)));
             }
+
+            let timeoutSeg = DEV_LOCK.baseTimeoutSeg + (n - 2) * DEV_LOCK.pasoTimeoutPorNodoSeg;
+            timeoutSeg = Math.min(DEV_LOCK.maxTimeoutSeg, Math.max(vivoSeg * 2.5, Math.min(DEV_LOCK.maxTimeoutSeg, timeoutSeg)));
+
+            const bytesDiaFinal = (segEnDia / vivoSeg) * bytesPorEst + (segEnDia / histSeg) * bytesPorHist;
+            const mbDiaEstimados = Number((bytesDiaFinal / (1024 * 1024)).toFixed(2));
+
+            return {
+                nodosBase: n,
+                intervaloEstSeg: vivoSeg,
+                intervaloHistSeg: histSeg,
+                timeoutDesconexionSeg: Math.round(timeoutSeg),
+                maxPuntos: DEV_LOCK.maxPuntos,
+                mbDiaEstimados
+            };
         }
 
-        let cfg = cargarConfig();
+        let planRed = calcularPlanProporcional(2);
         let ultimaConsultaHistMs = 0;
         let timerConsulta = null;
         let timerRelojEstado = null;
@@ -414,7 +402,7 @@
             const ahora = Date.now();
             const refMs = hist.ultimoDatoNuevoMs || hist.primerVistaMs || ahora;
             const segSinDato = Math.max(0, (ahora - refMs) / 1000);
-            const conectado = segSinDato <= cfg.timeoutDesconexionSeg;
+            const conectado = segSinDato <= planRed.timeoutDesconexionSeg;
             return {
                 conectado,
                 segSinDato,
@@ -431,7 +419,7 @@
             }
             if (claves.length === 0) {
                 dotEstado.className = "dot warn";
-                estadoSync.textContent = "Sin nodos registrados";
+                estadoSync.textContent = `Sin nodos · Ciclo ${planRed.intervaloEstSeg}s`;
                 return;
             }
             const activos = claves.filter(k => evaluarEstadoNodo(k).conectado).length;
@@ -439,13 +427,13 @@
 
             if (activos === 0) {
                 dotEstado.className = "dot off";
-                estadoSync.textContent = `Todos desconectados (0/${claves.length})`;
+                estadoSync.textContent = `Desconectados (0/${claves.length}) · ${planRed.intervaloEstSeg}s`;
             } else if (desconectados > 0) {
                 dotEstado.className = "dot warn";
-                estadoSync.textContent = `Activos ${activos}/${claves.length} · ${desconectados} sin señal`;
+                estadoSync.textContent = `Activos ${activos}/${claves.length} · ${desconectados} sin señal · ${planRed.intervaloEstSeg}s`;
             } else {
                 dotEstado.className = "dot";
-                estadoSync.textContent = `En línea (${activos}/${claves.length}) · ${new Date().toLocaleTimeString()}`;
+                estadoSync.textContent = `En línea (${activos}/${claves.length}) · ${planRed.intervaloEstSeg}s · ~${planRed.mbDiaEstimados} MB/d`;
             }
         }
 
@@ -620,6 +608,7 @@
                     muestrasSesion: 0,
                     muestrasRemotas: null,
                     ultimaFirma: "",
+                    ultimaFirmaHist: "",
                     primerVistaMs: ahora,
                     ultimoDatoNuevoMs: null,
                     ultimaHora: "--:--:--",
@@ -636,7 +625,7 @@
             VARIABLES_BASE.forEach(v => { hist.puntos[v.key] = []; });
             VARIABLES_CALCULADAS.forEach(v => { hist.puntos[v.key] = []; });
 
-            const recortada = listaRemota.slice(-cfg.maxPuntos);
+            const recortada = listaRemota.slice(-planRed.maxPuntos);
             const firmaHist = JSON.stringify(recortada);
             if (firmaHist !== hist.ultimaFirmaHist) {
                 hist.ultimaFirmaHist = firmaHist;
@@ -706,7 +695,7 @@
                     const ultimo = lista[lista.length - 1];
                     if (!ultimo || ultimo.valor !== num) {
                         lista.push({ hora: hist.ultimaHora, valor: num });
-                        if (lista.length > cfg.maxPuntos) lista.shift();
+                        if (lista.length > planRed.maxPuntos) lista.shift();
                     }
                 }
             });
@@ -946,7 +935,7 @@
             document.getElementById("stRendimiento").textContent = `${pred.precHora} · ${pred.precDia}`;
             const estadoTextoModal = estadoNodo.conectado
                 ? `<span style="color:#6ee7b7;"><strong>Estado:</strong> Activo (último cambio ${estadoNodo.textoRelativo})</span><br>`
-                : `<span style="color:#fda4af;"><strong>Estado:</strong> Desconectado — sin datos nuevos ${estadoNodo.textoRelativo} (límite: ${cfg.timeoutDesconexionSeg} s)</span><br>`;
+                : `<span style="color:#fda4af;"><strong>Estado:</strong> Desconectado — sin datos nuevos ${estadoNodo.textoRelativo} (límite: ${planRed.timeoutDesconexionSeg} s)</span><br>`;
 
             document.getElementById("infoRendimiento").innerHTML = estadoTextoModal + (modoPrediccion === "normal"
                 ? `<strong>${pred.fraseNormal}</strong> — ${pred.notaNormal}<br><span style="color:#94a3b8;">Cambia a <strong>Avanzado</strong> para ver rangos, precisión por horizonte y métricas del modelo.</span>`
@@ -980,51 +969,24 @@
             });
         }
 
-        function abrirConfig() {
-            document.getElementById("cfgBaseUrl").value = cfg.baseUrl;
-            document.getElementById("cfgIntervaloEst").value = cfg.intervaloEstSeg;
-            document.getElementById("cfgIntervaloHist").value = cfg.intervaloHistSeg;
-            document.getElementById("cfgTimeoutDesconexion").value = cfg.timeoutDesconexionSeg;
-            document.getElementById("cfgMaxPuntos").value = cfg.maxPuntos;
-            document.getElementById("modalConfig").classList.add("open");
-        }
-
-        function cerrarConfig() {
-            document.getElementById("modalConfig").classList.remove("open");
-        }
-
-        function guardarConfig() {
-            cfg = {
-                baseUrl: (document.getElementById("cfgBaseUrl").value || CONFIG_DEFAULT.baseUrl).trim().replace(/\/+$/, ""),
-                intervaloEstSeg: Math.max(5, Number(document.getElementById("cfgIntervaloEst").value) || CONFIG_DEFAULT.intervaloEstSeg),
-                intervaloHistSeg: Math.max(15, Number(document.getElementById("cfgIntervaloHist").value) || CONFIG_DEFAULT.intervaloHistSeg),
-                timeoutDesconexionSeg: Math.max(30, Number(document.getElementById("cfgTimeoutDesconexion").value) || CONFIG_DEFAULT.timeoutDesconexionSeg),
-                maxPuntos: Math.min(100, Math.max(5, Number(document.getElementById("cfgMaxPuntos").value) || CONFIG_DEFAULT.maxPuntos))
-            };
-            localStorage.setItem(STORAGE_KEY_CFG, JSON.stringify(cfg));
-            ultimaConsultaHistMs = 0;
-            reiniciarTemporizador();
-            cerrarConfig();
-            consultarFirebase(true);
-        }
-
-        function restablecerConfig() {
-            localStorage.removeItem(STORAGE_KEY_CFG);
-            cfg = { ...CONFIG_DEFAULT };
-            ultimaConsultaHistMs = 0;
-            reiniciarTemporizador();
-            cerrarConfig();
-            consultarFirebase(true);
+        function aplicarPlanSegunNodos(claves) {
+            const totalNodos = Array.isArray(claves) ? claves.length : 0;
+            const nuevoPlan = calcularPlanProporcional(totalNodos);
+            const cambioIntervalo = nuevoPlan.intervaloEstSeg !== planRed.intervaloEstSeg;
+            planRed = nuevoPlan;
+            if (cambioIntervalo) {
+                reiniciarTemporizador();
+            }
         }
 
         async function consultarFirebase(forzarHist = false) {
             if (document.hidden) return;
             const ahora = Date.now();
-            const debePedirHist = forzarHist || (ahora - ultimaConsultaHistMs >= cfg.intervaloHistSeg * 1000);
+            const debePedirHist = forzarHist || (ahora - ultimaConsultaHistMs >= planRed.intervaloHistSeg * 1000);
 
             try {
-                const urlEst = `${cfg.baseUrl}/estaciones.json`;
-                const urlHist = `${cfg.baseUrl}/historial.json`;
+                const urlEst = `${DEV_LOCK.baseUrl}/estaciones.json`;
+                const urlHist = `${DEV_LOCK.baseUrl}/historial.json`;
 
                 const reqEst = fetch(urlEst, { cache: "no-store" });
                 const reqHist = debePedirHist ? fetch(urlHist, { cache: "no-store" }).catch(() => null) : Promise.resolve(null);
@@ -1041,7 +1003,9 @@
 
                 if (dataEst && typeof dataEst === "object") {
                     ultimoDatos = dataEst;
-                    Object.keys(dataEst).forEach(clave => {
+                    const claves = Object.keys(dataEst);
+                    aplicarPlanSegunNodos(claves);
+                    claves.forEach(clave => {
                         if (dataHist && dataHist[clave]) {
                             cargarHistorialRemoto(clave, dataHist[clave]);
                         }
@@ -1049,6 +1013,7 @@
                     });
                 } else {
                     ultimoDatos = {};
+                    aplicarPlanSegunNodos([]);
                 }
 
                 actualizarEstadoCabecera();
@@ -1062,7 +1027,7 @@
 
         function reiniciarTemporizador() {
             if (timerConsulta) clearInterval(timerConsulta);
-            timerConsulta = setInterval(() => consultarFirebase(false), cfg.intervaloEstSeg * 1000);
+            timerConsulta = setInterval(() => consultarFirebase(false), planRed.intervaloEstSeg * 1000);
 
             if (timerRelojEstado) clearInterval(timerRelojEstado);
             timerRelojEstado = setInterval(() => {
