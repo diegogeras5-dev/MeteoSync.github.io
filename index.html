@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MeteoSync - Red Meteorológica DGETI Chiapas</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-main: #070b14;
+            --bg-panel: #111827;
+            --bg-card: #1e293b;
+            --bg-cell: #0b1220;
+            --border: #283548;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent: #38bdf8;
+            --temp: #fb7185;
+            --hum: #38bdf8;
+            --wind: #34d399;
+            --dir: #fbbf24;
+            --pres: #a78bfa;
+            --alt: #22d3ee;
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, Tahoma, Geneva, Verdana, sans-serif;
+            background: radial-gradient(circle at top, #101a2e 0%, var(--bg-main) 65%);
+            color: var(--text-main);
+            margin: 0;
+            padding: 16px;
+            min-height: 100vh;
+        }
+
+        .topbar {
+            max-width: 1600px;
+            margin: 0 auto 20px auto;
+            background: rgba(17, 24, 39, 0.9);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 16px 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 14px;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .brand h1 {
+            margin: 0;
+            font-size: clamp(1.35rem, 2.5vw, 1.9rem);
+            color: var(--accent);
+            letter-spacing: 0.3px;
+        }
+
+        .brand p {
+            margin: 4px 0 0 0;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }
+
+        .menu-nav {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .pill-btn {
+            background: var(--bg-cell);
+            color: var(--text-main);
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            padding: 8px 14px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .pill-btn:hover,
+        .pill-btn.active {
+            border-color: var(--accent);
+            background: rgba(56, 189, 248, 0.16);
+            color: #e0f2fe;
+        }
+
+        .status-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.82rem;
+            color: #cbd5e1;
+            background: var(--bg-cell);
+            border: 1px solid var(--border);
+            padding: 8px 12px;
+            border-radius: 999px;
+        }
+
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #22c55e;
+            box-shadow: 0 0 8px #22c55e;
+        }
+
+        .dashboard-grid {
+            max-width: 1600px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
+            gap: 18px;
+        }
+
+        .nodo-bloque {
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 18px;
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            cursor: pointer;
+            transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+        }
+
+        .nodo-bloque:hover {
+            transform: translateY(-2px);
+            border-color: rgba(56, 189, 248, 0.55);
+            box-shadow: 0 14px 28px rgba(0, 0, 0, 0.45);
+        }
+
+        .nodo-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 10px;
+        }
+
+        .nodo-titulo {
+            margin: 0;
+            font-size: 1.2rem;
+            text-transform: capitalize;
+            color: var(--text-main);
+        }
+
+        .nodo-meta {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .nodo-badge {
+            font-size: 0.75rem;
+            padding: 4px 10px;
+            border-radius: 999px;
+            background: rgba(52, 211, 153, 0.14);
+            color: #6ee7b7;
+            border: 1px solid rgba(52, 211, 153, 0.35);
+            font-weight: 600;
+        }
+
+        .hint-tap {
+            font-size: 0.74rem;
+            color: var(--text-muted);
+        }
+
+        .metricas-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .cuadrito {
+            background: var(--bg-cell);
+            border: 1px solid #1e293b;
+            border-radius: 12px;
+            padding: 12px;
+            transition: border-color 0.16s ease, background 0.16s ease;
+        }
+
+        .cuadrito:hover {
+            border-color: var(--accent);
+            background: #101c33;
+        }
+
+        .cuadrito-label {
+            font-size: 0.76rem;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .cuadrito-valor {
+            font-size: 1.28rem;
+            font-weight: 700;
+            word-break: break-word;
+        }
+
+        .c-temp { color: var(--temp); }
+        .c-hum { color: var(--hum); }
+        .c-wind { color: var(--wind); }
+        .c-dir { color: var(--dir); }
+        .c-pres { color: var(--pres); }
+        .c-alt { color: var(--alt); }
+
+        .mini-chart-box {
+            background: var(--bg-cell);
+            border: 1px solid #1e293b;
+            border-radius: 12px;
+            padding: 10px;
+            height: 135px;
+            position: relative;
+        }
+
+        .mini-chart-box:hover {
+            border-color: var(--accent);
+        }
+
+        .nodo-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            padding-top: 4px;
+        }
+
+        .estado-vacio {
+            grid-column: 1 / -1;
+            text-align: center;
+            background: var(--bg-panel);
+            border: 1px dashed #475569;
+            border-radius: 16px;
+            padding: 40px 20px;
+            color: var(--text-muted);
+        }
+
+        /* Modal / Panel Detallado */
+        .modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(2, 6, 23, 0.78);
+            backdrop-filter: blur(4px);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            padding: 14px;
+            z-index: 1000;
+        }
+
+        .modal-backdrop.open {
+            display: flex;
+        }
+
+        .modal-panel {
+            width: 100%;
+            max-width: 960px;
+            max-height: 92vh;
+            overflow-y: auto;
+            background: var(--bg-panel);
+            border: 1px solid #334155;
+            border-radius: 18px;
+            padding: 20px;
+            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.65);
+        }
+
+        .modal-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 12px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 14px;
+            margin-bottom: 16px;
+        }
+
+        .modal-top h2 {
+            margin: 0;
+            font-size: 1.35rem;
+            color: var(--accent);
+            text-transform: capitalize;
+        }
+
+        .modal-top p {
+            margin: 4px 0 0 0;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .close-btn {
+            background: #1e293b;
+            color: #f8fafc;
+            border: 1px solid #475569;
+            border-radius: 10px;
+            padding: 8px 14px;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+
+        .close-btn:hover {
+            background: #334155;
+        }
+
+        .var-tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        .stat-box {
+            background: var(--bg-cell);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 12px;
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+        }
+
+        .stat-val {
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        .detail-chart-wrap {
+            background: var(--bg-cell);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 14px;
+            height: 290px;
+            margin-bottom: 16px;
+        }
+
+        .rendimiento-box {
+            background: rgba(15, 23, 42, 0.85);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 14px;
+            font-size: 0.88rem;
+            line-height: 1.5;
+            color: #cbd5e1;
+        }
+
+        @media (max-width: 600px) {
+            body {
+                padding: 10px;
+            }
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+                gap: 12px;
+            }
+            .nodo-bloque {
+                padding: 14px;
+            }
+            .cuadrito-valor {
+                font-size: 1.12rem;
+            }
+            .detail-chart-wrap {
+                height: 230px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="topbar">
+        <div class="brand">
+            <h1>MeteoSync · DGETI Chiapas</h1>
+            <p>Red Meteorológica Escolar · Toca cualquier nodo o medición para ver detalle</p>
+        </div>
+
+        <nav id="menuFiltros" class="menu-nav" aria-label="Filtro de nodos">
+            <button class="pill-btn active" data-filtro="todos" onclick="seleccionarFiltro('todos')">Todos los nodos</button>
+        </nav>
+
+        <div class="status-chip">
+            <span class="dot"></span>
+            <span id="estadoSync">Sincronizando...</span>
+        </div>
+    </header>
+
+    <main id="contenedorNodos" class="dashboard-grid">
+        <div class="estado-vacio">Cargando estaciones meteorológicas...</div>
+    </main>
+
+    <!-- Ventana de detalle al presionar un nodo, gráfica o medición -->
+    <div id="modalDetalle" class="modal-backdrop" onclick="cerrarModalFondo(event)">
+        <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="modalTitulo">
+            <div class="modal-top">
+                <div>
+                    <h2 id="modalTitulo">Detalle del Nodo</h2>
+                    <p id="modalSubtitulo">Promedios, rendimiento y gráfica en tiempo real</p>
+                </div>
+                <button class="close-btn" onclick="cerrarModal()">Cerrar ✕</button>
+            </div>
+
+            <div id="tabsVariables" class="var-tabs"></div>
+
+            <div class="stats-row">
+                <div class="stat-box">
+                    <div class="stat-label">Valor actual</div>
+                    <div id="stActual" class="stat-val">--</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Promedio (sesión)</div>
+                    <div id="stPromedio" class="stat-val">--</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Mínimo / Máximo</div>
+                    <div id="stMinMax" class="stat-val">--</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Rendimiento de enlace</div>
+                    <div id="stRendimiento" class="stat-val">--</div>
+                </div>
+            </div>
+
+            <div class="detail-chart-wrap">
+                <canvas id="chartDetalle"></canvas>
+            </div>
+
+            <div id="infoRendimiento" class="rendimiento-box"></div>
+        </div>
+    </div>
+
+    <script>
+        const URL_FIREBASE = "https://meteosync-40958-default-rtdb.firebaseio.com/estaciones.json";
+        const contenedor = document.getElementById("contenedorNodos");
+        const menuFiltros = document.getElementById("menuFiltros");
+        const estadoSync = document.getElementById("estadoSync");
+
+        const VARIABLES = [
+            { key: "temperatura", label: "Temperatura", unit: "°C", color: "#fb7185", cls: "c-temp", aliases: ["temperatura"] },
+            { key: "humedad", label: "Humedad relativa", unit: "%", color: "#38bdf8", cls: "c-hum", aliases: ["humedad"] },
+            { key: "velocidad_viento", label: "Velocidad del viento", unit: "km/h", color: "#34d399", cls: "c-wind", aliases: ["velocidad_viento", "velocidadViento"] },
+            { key: "direccion_viento", label: "Dirección del viento", unit: "", color: "#fbbf24", cls: "c-dir", aliases: ["direccion_viento", "direccionViento"] },
+            { key: "presion_atmosferica", label: "Presión atmosférica", unit: "hPa", color: "#a78bfa", cls: "c-pres", aliases: ["presion_atmosferica", "presion"] },
+            { key: "altura", label: "Altura", unit: "m", color: "#22d3ee", cls: "c-alt", aliases: ["altura", "altitud"] }
+        ];
+
+        let ultimoDatos = {};
+        let filtroNodo = "todos";
+        let historialNodos = {}; // { [nodoKey]: { muestras, exitos, errores, intervaloSeg, puntos: { [varKey]: [{ hora, valor }] } } }
+        let miniCharts = {};
+        let modalAbierto = false;
+        let nodoModal = null;
+        let variableModal = "temperatura";
+        let chartDetalle = null;
+
+        function obtenerValorVariable(datosNodo, varObj) {
+            if (!datosNodo || typeof datosNodo !== "object") return undefined;
+            for (const alias of varObj.aliases) {
+                if (datosNodo[alias] !== undefined && datosNodo[alias] !== null && datosNodo[alias] !== "") {
+                    return datosNodo[alias];
+                }
+            }
+            return undefined;
+        }
+
+        function formatearValor(valor, unidad) {
+            if (valor === undefined || valor === null || valor === "") {
+                return `-- ${unidad}`.trim();
+            }
+            return `${valor} ${unidad}`.trim();
+        }
+
+        function asegurarHistorial(nodoKey) {
+            if (!historialNodos[nodoKey]) {
+                const puntos = {};
+                VARIABLES.forEach(v => { puntos[v.key] = []; });
+                historialNodos[nodoKey] = {
+                    muestras: 0,
+                    exitos: 0,
+                    errores: 0,
+                    ultimaHora: "--:--:--",
+                    ultimoTimestampMs: null,
+                    intervaloEstimadoSeg: null,
+                    puntos
+                };
+            }
+            return historialNodos[nodoKey];
+        }
+
+        function registrarMuestra(nodoKey, datosNodo) {
+            const hist = asegurarHistorial(nodoKey);
+            const ahora = new Date();
+            const horaStr = ahora.toLocaleTimeString();
+            const msAhora = ahora.getTime();
+
+            if (hist.ultimoTimestampMs !== null) {
+                const diffSeg = (msAhora - hist.ultimoTimestampMs) / 1000;
+                if (diffSeg > 0.5 && diffSeg < 3600) {
+                    hist.intervaloEstimadoSeg = hist.intervaloEstimadoSeg === null
+                        ? diffSeg
+                        : Number(((hist.intervaloEstimadoSeg * 0.7) + (diffSeg * 0.3)).toFixed(1));
+                }
+            }
+            hist.ultimoTimestampMs = msAhora;
+            hist.ultimaHora = horaStr;
+            hist.muestras += 1;
+            hist.exitos += 1;
+
+            VARIABLES.forEach(v => {
+                const raw = obtenerValorVariable(datosNodo, v);
+                const num = Number(raw);
+                if (raw !== undefined && raw !== null && raw !== "" && !Number.isNaN(num)) {
+                    const lista = hist.puntos[v.key];
+                    const ultimo = lista[lista.length - 1];
+                    if (!ultimo || ultimo.valor !== num || ultimo.hora !== horaStr) {
+                        lista.push({ hora: horaStr, valor: num });
+                        if (lista.length > 30) lista.shift();
+                    }
+                }
+            });
+        }
+
+        function actualizarMenuFiltros(clavesNodos) {
+            const actuales = Array.from(menuFiltros.querySelectorAll("button[data-filtro]")).map(b => b.dataset.filtro);
+            const deseados = ["todos", ...clavesNodos];
+
+            if (actuales.length === deseados.length && deseados.every((k, i) => actuales[i] === k)) {
+                menuFiltros.querySelectorAll("button[data-filtro]").forEach(btn => {
+                    btn.classList.toggle("active", btn.dataset.filtro === filtroNodo);
+                });
+                return;
+            }
+
+            menuFiltros.innerHTML = "";
+            deseados.forEach(clave => {
+                const btn = document.createElement("button");
+                btn.className = "pill-btn" + (clave === filtroNodo ? " active" : "");
+                btn.dataset.filtro = clave;
+                btn.textContent = clave === "todos" ? "Todos los nodos" : clave.replace(/_/g, " ");
+                btn.onclick = () => seleccionarFiltro(clave);
+                menuFiltros.appendChild(btn);
+            });
+        }
+
+        function seleccionarFiltro(clave) {
+            filtroNodo = clave;
+            renderizarTablero();
+        }
+
+        function destruirMiniCharts() {
+            Object.values(miniCharts).forEach(ch => ch.destroy());
+            miniCharts = {};
+        }
+
+        function crearMiniChart(canvasId, hist) {
+            const canvas = document.getElementById(canvasId);
+            if (!canvas) return;
+            const serieTemp = hist.puntos.temperatura || [];
+            const serieHum = hist.puntos.humedad || [];
+            const labels = serieTemp.map(p => p.hora);
+
+            miniCharts[canvasId] = new Chart(canvas.getContext("2d"), {
+                type: "line",
+                data: {
+                    labels,
+                    datasets: [
+                        {
+                            label: "Temp (°C)",
+                            data: serieTemp.map(p => p.valor),
+                            borderColor: "#fb7185",
+                            borderWidth: 2,
+                            pointRadius: 1.5,
+                            tension: 0.3,
+                            fill: false
+                        },
+                        {
+                            label: "Hum (%)",
+                            data: serieHum.map(p => p.valor),
+                            borderColor: "#38bdf8",
+                            borderWidth: 2,
+                            pointRadius: 1.5,
+                            tension: 0.3,
+                            fill: false
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    plugins: {
+                        legend: {
+                            labels: { color: "#cbd5e1", boxWidth: 10, font: { size: 10 } }
+                        }
+                    },
+                    scales: {
+                        x: { display: false },
+                        y: {
+                            ticks: { color: "#94a3b8", font: { size: 10 }, maxTicksLimit: 4 },
+                            grid: { color: "rgba(148, 163, 184, 0.12)" }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderizarTablero() {
+            destruirMiniCharts();
+            const claves = Object.keys(ultimoDatos || {});
+
+            if (claves.length === 0) {
+                actualizarMenuFiltros([]);
+                contenedor.innerHTML = `<div class="estado-vacio">Esperando datos en Firebase Realtime Database...</div>`;
+                return;
+            }
+
+            actualizarMenuFiltros(claves);
+            const visibles = filtroNodo === "todos" ? claves : claves.filter(k => k === filtroNodo);
+
+            if (visibles.length === 0) {
+                contenedor.innerHTML = `<div class="estado-vacio">No se encontró el nodo seleccionado.</div>`;
+                return;
+            }
+
+            contenedor.innerHTML = "";
+            visibles.forEach(clave => {
+                const datos = ultimoDatos[clave] || {};
+                const hist = asegurarHistorial(clave);
+                const nombreVisible = clave.replace(/_/g, " ");
+                const canvasId = `mini_${clave.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
+
+                const bloque = document.createElement("section");
+                bloque.className = "nodo-bloque";
+                bloque.onclick = () => abrirModal(clave, "temperatura");
+
+                const cuadritosHtml = VARIABLES.map(v => {
+                    const val = obtenerValorVariable(datos, v);
+                    return `
+                        <div class="cuadrito" onclick="event.stopPropagation(); abrirModal('${clave}', '${v.key}')">
+                            <div class="cuadrito-label">
+                                <span>${v.label}</span>
+                                <span>↗</span>
+                            </div>
+                            <div class="cuadrito-valor ${v.cls}">${formatearValor(val, v.unit)}</div>
+                        </div>
+                    `;
+                }).join("");
+
+                bloque.innerHTML = `
+                    <div class="nodo-header">
+                        <h2 class="nodo-titulo">${nombreVisible}</h2>
+                        <div class="nodo-meta">
+                            <span class="hint-tap">Tocar para detalle</span>
+                            <span class="nodo-badge">Activo</span>
+                        </div>
+                    </div>
+                    <div class="metricas-grid">
+                        ${cuadritosHtml}
+                    </div>
+                    <div class="mini-chart-box" onclick="event.stopPropagation(); abrirModal('${clave}', 'temperatura')">
+                        <canvas id="${canvasId}"></canvas>
+                    </div>
+                    <div class="nodo-footer">
+                        <span>Muestras: ${hist.muestras}</span>
+                        <span>Actualizado: ${hist.ultimaHora}</span>
+                    </div>
+                `;
+
+                contenedor.appendChild(bloque);
+                crearMiniChart(canvasId, hist);
+            });
+        }
+
+        function abrirModal(nodoKey, varKey) {
+            nodoModal = nodoKey;
+            variableModal = varKey || "temperatura";
+            modalAbierto = true;
+            document.getElementById("modalDetalle").classList.add("open");
+            actualizarModal();
+        }
+
+        function cerrarModal() {
+            modalAbierto = false;
+            document.getElementById("modalDetalle").classList.remove("open");
+            if (chartDetalle) {
+                chartDetalle.destroy();
+                chartDetalle = null;
+            }
+        }
+
+        function cerrarModalFondo(event) {
+            if (event.target.id === "modalDetalle") {
+                cerrarModal();
+            }
+        }
+
+        function actualizarModal() {
+            if (!modalAbierto || !nodoModal) return;
+
+            const datosNodo = ultimoDatos[nodoModal] || {};
+            const hist = asegurarHistorial(nodoModal);
+            const varObj = VARIABLES.find(v => v.key === variableModal) || VARIABLES[0];
+
+            document.getElementById("modalTitulo").textContent = `${nodoModal.replace(/_/g, " ")} · ${varObj.label}`;
+            document.getElementById("modalSubtitulo").textContent = `Ruta: estaciones/${nodoModal} · Última lectura: ${hist.ultimaHora}`;
+
+            const tabsEl = document.getElementById("tabsVariables");
+            tabsEl.innerHTML = "";
+            VARIABLES.forEach(v => {
+                const btn = document.createElement("button");
+                btn.className = "pill-btn" + (v.key === varObj.key ? " active" : "");
+                btn.textContent = v.label;
+                btn.onclick = () => {
+                    variableModal = v.key;
+                    actualizarModal();
+                };
+                tabsEl.appendChild(btn);
+            });
+
+            const actualRaw = obtenerValorVariable(datosNodo, varObj);
+            document.getElementById("stActual").textContent = formatearValor(actualRaw, varObj.unit);
+
+            const puntos = hist.puntos[varObj.key] || [];
+            if (puntos.length > 0) {
+                const valores = puntos.map(p => p.valor);
+                const prom = valores.reduce((acc, n) => acc + n, 0) / valores.length;
+                const min = Math.min(...valores);
+                const max = Math.max(...valores);
+
+                document.getElementById("stPromedio").textContent = `${prom.toFixed(2)} ${varObj.unit}`.trim();
+                document.getElementById("stMinMax").textContent = `${min} / ${max} ${varObj.unit}`.trim();
+            } else {
+                document.getElementById("stPromedio").textContent = `-- ${varObj.unit}`.trim();
+                document.getElementById("stMinMax").textContent = `-- / --`;
+            }
+
+            const tasaExito = hist.muestras > 0 ? Math.round((hist.exitos / hist.muestras) * 100) : 100;
+            const cadenciaTxt = hist.intervaloEstimadoSeg ? `~${hist.intervaloEstimadoSeg}s` : "Calculando";
+            document.getElementById("stRendimiento").textContent = `${tasaExito}% (${cadenciaTxt})`;
+
+            document.getElementById("infoRendimiento").innerHTML = `
+                <strong>Rendimiento y diagnóstico del nodo:</strong><br>
+                • Lecturas sincronizadas en esta sesión: <strong>${hist.exitos}</strong> exitosas / <strong>${hist.errores}</strong> fallos (${tasaExito}% de disponibilidad).<br>
+                • Cadencia de recepción observada: <strong>${cadenciaTxt}</strong> · Puntos graficados en <strong>${varObj.label}</strong>: <strong>${puntos.length}</strong>.<br>
+                • Sensores futuros listos en estructura: velocidad del viento, dirección del viento, presión atmosférica y altura.
+            `;
+
+            const ctxDet = document.getElementById("chartDetalle").getContext("2d");
+            if (chartDetalle) chartDetalle.destroy();
+
+            chartDetalle = new Chart(ctxDet, {
+                type: "line",
+                data: {
+                    labels: puntos.map(p => p.hora),
+                    datasets: [{
+                        label: `${varObj.label} (${varObj.unit || "lectura"})`,
+                        data: puntos.map(p => p.valor),
+                        borderColor: varObj.color,
+                        backgroundColor: "rgba(56, 189, 248, 0.12)",
+                        borderWidth: 3,
+                        tension: 0.3,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    plugins: {
+                        legend: { labels: { color: "#f8fafc" } }
+                    },
+                    scales: {
+                        x: { ticks: { color: "#94a3b8" }, grid: { color: "#1e293b" } },
+                        y: { ticks: { color: "#94a3b8" }, grid: { color: "#1e293b" } }
+                    }
+                }
+            });
+        }
+
+        async function consultarFirebase() {
+            try {
+                const res = await fetch(URL_FIREBASE, { cache: "no-store" });
+                const data = await res.json();
+
+                if (data && typeof data === "object") {
+                    ultimoDatos = data;
+                    Object.keys(data).forEach(clave => {
+                        registrarMuestra(clave, data[clave]);
+                    });
+                } else {
+                    ultimoDatos = {};
+                }
+
+                estadoSync.textContent = `En línea · ${new Date().toLocaleTimeString()}`;
+                renderizarTablero();
+                if (modalAbierto) actualizarModal();
+            } catch (err) {
+                console.error("Error consultando Firebase:", err);
+                estadoSync.textContent = "Reintentando conexión...";
+                Object.keys(historialNodos).forEach(k => {
+                    historialNodos[k].errores += 1;
+                });
+            }
+        }
+
+        consultarFirebase();
+        setInterval(consultarFirebase, 4000);
+    </script>
+</body>
+</html>
