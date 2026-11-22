@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Red Meteorológica Estatal - DGETI Chiapas</title>
+    <!-- Importamos Chart.js para los gráficos profesionales -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0b0f19; color: #f8fafc; margin: 0; padding: 20px; }
+        header { text-align: center; margin-bottom: 30px; }
+        h1 { color: #38bdf8; margin: 5px 0; }
+        .container { max-width: 900px; margin: 0 auto; }
+        .selector-box { background: #1e293b; padding: 15px 20px; border-radius: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        select { background: #0f172a; color: #fff; border: 1px solid #334155; padding: 10px; border-radius: 8px; font-size: 1rem; outline: none; cursor: pointer; }
+        .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; }
+        .card { background: #1e293b; padding: 25px; border-radius: 12px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        .card h3 { margin: 0 0 10px 0; color: #94a3b8; font-size: 1.1rem; }
+        .value { font-size: 2.5rem; font-weight: bold; }
+        .temp { color: #f43f5e; }
+        .hum { color: #38bdf8; }
+        .chart-container { background: #1e293b; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Red Meteorológica DGETI - Chiapas</h1>
+        <p>Sistema de Telemetría Escolar Autónoma</p>
+    </header>
+
+    <div class="container">
+        <!-- Menú desplegable para seleccionar la escuela o nodo -->
+        <div class="selector-box">
+            <label for="nodoSelect"><strong>Seleccionar Escuela / Nodo:</strong></label>
+            <select id="nodoSelect" onchange="cambiarNodo()">
+                <option value="">Cargando estaciones...</option>
+            </select>
+        </div>
+
+        <!-- Tarjetas de datos actuales -->
+        <div class="cards">
+            <div class="card">
+                <h3>Temperatura Actual</h3>
+                <div id="tempVal" class="value temp">-- °C</div>
+            </div>
+            <div class="card">
+                <h3>Humedad Relativa</h3>
+                <div id="humVal" class="value hum">-- %</div>
+            </div>
+        </div>
+
+        <!-- Gráfico en tiempo real -->
+        <div class="chart-container">
+            <canvas id="meteoChart"></canvas>
+        </div>
+    </div>
+
+    <script>
+        let allData = {};
+        let nodoActual = "";
+        let chart;
+
+        // Configuración inicial del gráfico con Chart.js
+        const ctx = document.getElementById('meteoChart').getContext('2d');
+        chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    { label: 'Temperatura (°C)', data: [], borderColor: '#f43f5e', backgroundColor: 'rgba(244, 63, 94, 0.1)', borderWidth: 3, tension: 0.3, fill: true },
+                    { label: 'Humedad (%)', data: [], borderColor: '#38bdf8', backgroundColor: 'rgba(56, 189, 248, 0.1)', borderWidth: 3, tension: 0.3, fill: true }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { labels: { color: '#f8fafc' } } },
+                scales: {
+                    x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
+                    y: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } }
+                }
+            }
+        });
+
+        async function obtenerDatos() {
+            try {
+                let res = await fetch('/api/nodos');
+                allData = await res.json();
+                let select = document.getElementById('nodoSelect');
+                let nodosKeys = Object.keys(allData);
+
+                if (nodosKeys.length === 0) {
+                    select.innerHTML = '<option>Esperando conexión de ESP32s...</option>';
+                    return;
+                }
+
+                // Mantener selección actual o asignar la primera
+                if (!nodoActual || !allData[nodoActual]) {
+                    nodoActual = nodosKeys[0];
+                }
+
+                // Actualizar opciones del selector dinámicamente
+                select.innerHTML = "";
+                nodosKeys.forEach(nodo => {
+                    let opt = document.createElement('option');
+                    opt.value = nodo;
+                    opt.innerText = nodo.replace(/_/g, ' ');
+                    if (nodo === nodoActual) opt.selected = true;
+                    select.appendChild(opt);
+                });
+
+                // Actualizar valores en pantalla
+                let datosNodo = allData[nodoActual];
+                document.getElementById('tempVal').innerText = datosNodo.temperatura + " °C";
+                document.getElementById('humVal').innerText = datosNodo.humedad + " %";
+
+                // Agregar datos al gráfico histórico en vivo
+                let horaActual = datosNodo.ultimaActualizacion;
+                if (chart.data.labels[chart.data.labels.length - 1] !== horaActual) {
+                    if (chart.data.labels.length > 15) { // Mantener solo los últimos 15 puntos
+                        chart.data.labels.shift();
+                        chart.data.datasets[0].data.shift();
+                        chart.data.datasets[1].data.shift();
+                    }
+                    chart.data.labels.push(horaActual);
+                    chart.data.datasets[0].data.push(datosNodo.temperatura);
+                    chart.data.datasets[1].data.push(datosNodo.humedad);
+                    chart.update();
+                }
+
+            } catch (err) {
+                console.error("Error sincronizando nodos:", err);
+            }
+        }
+
+        function cambiarNodo() {
+            nodoActual = document.getElementById('nodoSelect').value;
+            // Limpiar gráfico al cambiar de escuela
+            chart.data.labels = [];
+            chart.data.datasets[0].data = [];
+            chart.data.datasets[1].data = [];
+            chart.update();
+            obtenerDatos();
+        }
+
+        // Consultar cada 3 segundos
+        setInterval(obtenerDatos, 3000);
+        obtenerDatos();
+    </script>
+</body>
+</html>
