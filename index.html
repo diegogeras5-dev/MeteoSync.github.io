@@ -56,6 +56,7 @@
     </div>
 
     <script>
+        const URL_FIREBASE = "https://meteosync-40958-default-rtdb.firebaseio.com/estaciones.json";
         let allData = {};
         let nodoActual = "";
         let chart;
@@ -83,8 +84,10 @@
 
         async function obtenerDatos() {
             try {
-                let res = await fetch('/api/nodos');
-                allData = await res.json();
+                let res = await fetch(URL_FIREBASE);
+                let rawData = await res.json();
+                allData = rawData || {};
+
                 let select = document.getElementById('nodoSelect');
                 let nodosKeys = Object.keys(allData);
 
@@ -98,32 +101,43 @@
                     nodoActual = nodosKeys[0];
                 }
 
-                // Actualizar opciones del selector dinámicamente
-                select.innerHTML = "";
-                nodosKeys.forEach(nodo => {
-                    let opt = document.createElement('option');
-                    opt.value = nodo;
-                    opt.innerText = nodo.replace(/_/g, ' ');
-                    if (nodo === nodoActual) opt.selected = true;
-                    select.appendChild(opt);
-                });
+                // Actualizar opciones del selector dinámicamente solo si cambiaron
+                let opcionesActuales = Array.from(select.options).map(o => o.value);
+                let listaCambio = opcionesActuales.length !== nodosKeys.length ||
+                    nodosKeys.some((k, idx) => opcionesActuales[idx] !== k);
+
+                if (listaCambio) {
+                    select.innerHTML = "";
+                    nodosKeys.forEach(nodo => {
+                        let opt = document.createElement('option');
+                        opt.value = nodo;
+                        opt.innerText = nodo.replace(/_/g, ' ');
+                        if (nodo === nodoActual) opt.selected = true;
+                        select.appendChild(opt);
+                    });
+                }
 
                 // Actualizar valores en pantalla
                 let datosNodo = allData[nodoActual];
-                document.getElementById('tempVal').innerText = datosNodo.temperatura + " °C";
-                document.getElementById('humVal').innerText = datosNodo.humedad + " %";
+                if (!datosNodo) return;
+
+                let temp = datosNodo.temperatura !== undefined ? datosNodo.temperatura : "--";
+                let hum = datosNodo.humedad !== undefined ? datosNodo.humedad : "--";
+
+                document.getElementById('tempVal').innerText = `${temp} °C`;
+                document.getElementById('humVal').innerText = `${hum} %`;
 
                 // Agregar datos al gráfico histórico en vivo
-                let horaActual = datosNodo.ultimaActualizacion;
-                if (chart.data.labels[chart.data.labels.length - 1] !== horaActual) {
+                let horaActual = datosNodo.ultimaActualizacion || new Date().toLocaleTimeString();
+                if (chart.data.labels[chart.data.labels.length - 1] !== horaActual && temp !== "--" && hum !== "--") {
                     if (chart.data.labels.length > 15) { // Mantener solo los últimos 15 puntos
                         chart.data.labels.shift();
                         chart.data.datasets[0].data.shift();
                         chart.data.datasets[1].data.shift();
                     }
                     chart.data.labels.push(horaActual);
-                    chart.data.datasets[0].data.push(datosNodo.temperatura);
-                    chart.data.datasets[1].data.push(datosNodo.humedad);
+                    chart.data.datasets[0].data.push(Number(temp));
+                    chart.data.datasets[1].data.push(Number(hum));
                     chart.update();
                 }
 
